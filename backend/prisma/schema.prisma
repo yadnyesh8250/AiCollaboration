@@ -30,6 +30,9 @@ model User {
   sessions             Session[]
   ownedOrganizations   Organization[]    @relation("OrgOwner")
   workspaceMemberships WorkspaceMember[]
+  organizationMembers  OrganizationMember[]
+  invitesSent          WorkspaceInvite[] @relation("InvitedBy")
+  notifications        Notification[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -50,6 +53,7 @@ model Organization {
 
   // relations
   workspaces Workspace[]
+  members    OrganizationMember[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -70,6 +74,7 @@ model Workspace {
 
   // relations
   members WorkspaceMember[]
+  invites WorkspaceInvite[]
 
   @@unique([organizationId, slug])      // slug unique per org
 }
@@ -123,4 +128,81 @@ model Session {
   // FK to User
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────
+// OrganizationMember — User ↔ Organization with a role
+// ─────────────────────────────────────────────────────────────
+model OrganizationMember {
+  id             String           @id @default(uuid())
+  role           OrganizationRole @default(MEMBER)
+  joinedAt       DateTime         @default(now())
+
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  BILLING_ADMIN
+  MEMBER
+}
+
+// ─────────────────────────────────────────────────────────────
+// WorkspaceInvite — Pending invitations
+// ─────────────────────────────────────────────────────────────
+model WorkspaceInvite {
+  id           String        @id @default(uuid())
+  workspaceId  String
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email        String
+  role         WorkspaceRole
+  token        String        @unique
+  invitedById  String
+  invitedBy    User          @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  status       InviteStatus  @default(PENDING)
+  expiresAt    DateTime
+  createdAt    DateTime      @default(now())
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+// ─────────────────────────────────────────────────────────────
+// AuditLog — Immutable history of actions
+// ─────────────────────────────────────────────────────────────
+model AuditLog {
+  id             String    @id @default(uuid())
+  actorId        String?
+  organizationId String?
+  workspaceId    String?
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────
+// Notification — In-app notifications
+// ─────────────────────────────────────────────────────────────
+model Notification {
+  id          String   @id @default(uuid())
+  recipientId String
+  recipient   User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId     String?
+  type        String
+  payload     Json?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }

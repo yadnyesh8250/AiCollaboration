@@ -1,4 +1,5 @@
 import prisma from "../config/db.js";
+import { logAction } from "../services/audit.service.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/organizations
@@ -30,6 +31,24 @@ export const createOrganization = async (req, res) => {
       },
     });
 
+    // Automatically create an OrganizationMember record with OWNER role
+    await prisma.organizationMember.create({
+      data: {
+        userId: req.user.id,
+        organizationId: org.id,
+        role: "OWNER"
+      }
+    });
+
+    // Audit log
+    await logAction({
+      actorId: req.user.id,
+      organizationId: org.id,
+      action: "ORGANIZATION_CREATED",
+      entityType: "ORGANIZATION",
+      entityId: org.id,
+    });
+
     return res.status(201).json({ success: true, organization: org });
   } catch (err) {
     if (err.code === "P2002") {
@@ -42,17 +61,23 @@ export const createOrganization = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/organizations
-// List organizations where the user is owner
+// List organizations where the user is a member
 // ─────────────────────────────────────────────────────────────────────────────
 export const listMyOrganizations = async (req, res) => {
   try {
-    const orgs = await prisma.organization.findMany({
-      where: { ownerId: req.user.id },
-      include: { _count: { select: { workspaces: true } } },
-      orderBy: { createdAt: "desc" },
+    const memberships = await prisma.organizationMember.findMany({
+      where: { userId: req.user.id },
+      include: {
+        organization: {
+          include: { _count: { select: { workspaces: true } } }
+        }
+      },
+      orderBy: { joinedAt: "desc" },
     });
 
-    return res.status(200).json({ success: true, organizations: orgs });
+    const organizations = memberships.map(m => m.organization);
+
+    return res.status(200).json({ success: true, organizations });
   } catch (err) {
     console.error("[listMyOrganizations]", err);
     return res.status(500).json({ success: false, message: "Internal server error." });
@@ -61,7 +86,7 @@ export const listMyOrganizations = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/organizations/:orgId
-// Get a single organization by ID (owner only)
+// Get a single organization by ID
 // ─────────────────────────────────────────────────────────────────────────────
 export const getOrganization = async (req, res) => {
   try {
@@ -69,15 +94,15 @@ export const getOrganization = async (req, res) => {
 
     const org = await prisma.organization.findUnique({
       where: { id: orgId },
-      include: { workspaces: true, owner: { select: { id: true, username: true, email: true } } },
+      include: { 
+        workspaces: true, 
+        owner: { select: { id: true, username: true, email: true } },
+        members: { include: { user: { select: { id: true, username: true } } } }
+      },
     });
 
     if (!org) {
       return res.status(404).json({ success: false, message: "Organization not found." });
-    }
-
-    if (org.ownerId !== req.user.id) {
-      return res.status(403).json({ success: false, message: "Access denied." });
     }
 
     return res.status(200).json({ success: true, organization: org });

@@ -6,6 +6,7 @@ import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import organizationRoutes from "./routes/organization.routes.js";
 import workspaceRoutes from "./routes/workspace.routes.js";
+import invitationRoutes from "./routes/invitation.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +25,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/workspaces", workspaceRoutes);
+app.use("/api/invites", invitationRoutes);
 
 // ── 404 handler ─────────────────────────────────────────────────
 app.use((req, res) => {

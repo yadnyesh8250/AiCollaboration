@@ -1,4 +1,5 @@
 import prisma from "../config/db.js";
+import { logAction } from "../services/audit.service.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/organizations/:orgId/workspaces
@@ -13,13 +14,9 @@ export const createWorkspace = async (req, res) => {
       return res.status(400).json({ success: false, message: "name and slug are required." });
     }
 
-    // Verify org exists and user is the owner
-    const org = await prisma.organization.findUnique({ where: { id: orgId } });
-    if (!org) {
-      return res.status(404).json({ success: false, message: "Organization not found." });
-    }
-    if (org.ownerId !== req.user.id) {
-      return res.status(403).json({ success: false, message: "Only the org owner can create workspaces." });
+    // Checking org membership (injected by requireOrgRole)
+    if (!req.orgMember || !['OWNER', 'ADMIN'].includes(req.orgMember.role)) {
+      return res.status(403).json({ success: false, message: "Only Org Owners and Admins can create workspaces." });
     }
 
     const workspace = await prisma.workspace.create({
@@ -41,6 +38,15 @@ export const createWorkspace = async (req, res) => {
       },
     });
 
+    await logAction({
+      actorId: req.user.id,
+      organizationId: orgId,
+      workspaceId: workspace.id,
+      action: "WORKSPACE_CREATED",
+      entityType: "WORKSPACE",
+      entityId: workspace.id,
+    });
+
     return res.status(201).json({ success: true, workspace });
   } catch (err) {
     if (err.code === "P2002") {
@@ -58,11 +64,6 @@ export const createWorkspace = async (req, res) => {
 export const listWorkspaces = async (req, res) => {
   try {
     const { orgId } = req.params;
-
-    const org = await prisma.organization.findUnique({ where: { id: orgId } });
-    if (!org) {
-      return res.status(404).json({ success: false, message: "Organization not found." });
-    }
 
     const workspaces = await prisma.workspace.findMany({
       where: { organizationId: orgId },
@@ -99,15 +100,69 @@ export const getWorkspace = async (req, res) => {
       return res.status(404).json({ success: false, message: "Workspace not found." });
     }
 
-    // Allow access if user is a member OR the workspace is public
-    const isMember = workspace.members.some((m) => m.userId === req.user.id);
-    if (!workspace.isPublic && !isMember) {
-      return res.status(403).json({ success: false, message: "Access denied." });
-    }
-
     return res.status(200).json({ success: true, workspace });
   } catch (err) {
     console.error("[getWorkspace]", err);
     return res.status(500).json({ success: false, message: "Internal server error." });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/workspaces/:workspaceId
+// Update workspace settings
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateWorkspace = async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { name, description, isPublic } = req.body;
+
+    const workspace = await prisma.workspace.update({
+      where: { id: workspaceId },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(isPublic !== undefined && { isPublic })
+      }
+    });
+
+    await logAction({
+      actorId: req.user.id,
+      workspaceId: workspace.id,
+      action: "WORKSPACE_UPDATED",
+      entityType: "WORKSPACE",
+      entityId: workspace.id,
+    });
+
+    return res.status(200).json({ success: true, workspace });
+  } catch (err) {
+    console.error("[updateWorkspace]", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/workspaces/:workspaceId
+// Delete a workspace
+// ─────────────────────────────────────────────────────────────────────────────
+export const deleteWorkspace = async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    await prisma.workspace.delete({
+      where: { id: workspaceId }
+    });
+
+    await logAction({
+      actorId: req.user.id,
+      workspaceId: workspaceId,
+      action: "WORKSPACE_DELETED",
+      entityType: "WORKSPACE",
+      entityId: workspaceId,
+    });
+
+    return res.status(200).json({ success: true, message: "Workspace deleted successfully." });
+  } catch (err) {
+    console.error("[deleteWorkspace]", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+}

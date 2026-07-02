@@ -3,6 +3,10 @@
 ## 🎯 Main Goal
 A-Collab is a comprehensive workspace-based collaboration platform. It aims to integrate organization management, real-time chat, and AI capabilities into a seamless experience.
 
+### Current Phase Focus: Phase 4 (Generative AI Assistant)
+We have successfully built out the Communication module including Channels, real-time Messages via socket.io, Mentions, Read Receipts, and Attachments.
+Next, we will focus on integrating Generative AI into these channels.
+
 ## 🏗️ Architecture & Tech Stack
 - **Backend:** Node.js, Express.js
 - **Database:** MySQL
@@ -10,6 +14,11 @@ A-Collab is a comprehensive workspace-based collaboration platform. It aims to i
 - **Auth:** JWT (JSON Web Tokens) with Bcrypt for password hashing
 
 ## 🗺️ Project Roadmap & Current Status
+* **Phase 1: Identity Module:** Completed
+* **Phase 2: Organization Module:** Completed
+* **Phase 3: Communication Module:** Completed
+* **Phase 4: Generative AI Assistant:** Not Started
+* **Phase 5: Canvas/Collaboration Module:** Not Started
 
 ### Phase 1: Identity Module (Current Focus)
 - [x] Prisma User Schema

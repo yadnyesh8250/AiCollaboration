@@ -33,6 +33,12 @@ model User {
   organizationMembers  OrganizationMember[]
   invitesSent          WorkspaceInvite[] @relation("InvitedBy")
   notifications        Notification[]
+
+  channelMembers       ChannelMember[]
+  messages             Message[]
+  reactions            Reaction[]
+  mentionsReceived     Mention[]         @relation("MentionedUser")
+  messageReads         MessageRead[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -75,6 +81,7 @@ model Workspace {
   // relations
   members WorkspaceMember[]
   invites WorkspaceInvite[]
+  channels Channel[]
 
   @@unique([organizationId, slug])      // slug unique per org
 }
@@ -205,4 +212,147 @@ model Notification {
   payload     Json?
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────
+// Channel — Communication channels within a workspace
+// ─────────────────────────────────────────────────────────────
+model Channel {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  description String?  @db.Text
+  type        ChannelType @default(PUBLIC)
+  createdBy   String
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     ChannelMember[]
+  messages    Message[]
+
+  @@unique([workspaceId, slug])
+}
+
+enum ChannelType {
+  PUBLIC
+  PRIVATE
+  ANNOUNCEMENT
+  AI
+}
+
+// ─────────────────────────────────────────────────────────────
+// ChannelMember — Membership for private channels
+// ─────────────────────────────────────────────────────────────
+model ChannelMember {
+  id          String   @id @default(uuid())
+  channelId   String
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        ChannelRole @default(MEMBER)
+  joinedAt    DateTime @default(now())
+
+  @@unique([channelId, userId])
+}
+
+enum ChannelRole {
+  ADMIN
+  MEMBER
+}
+
+// ─────────────────────────────────────────────────────────────
+// Message — Core communication entity
+// ─────────────────────────────────────────────────────────────
+model Message {
+  id              String   @id @default(uuid())
+  channelId       String
+  channel         Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  senderId        String
+  sender          User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content         String   @db.Text
+  messageType     MessageType @default(TEXT)
+  parentMessageId String?
+  parentMessage   Message? @relation("ThreadReplies", fields: [parentMessageId], references: [id], onDelete: Cascade)
+  editedAt        DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  replies         Message[] @relation("ThreadReplies")
+  attachments     Attachment[]
+  reactions       Reaction[]
+  mentions        Mention[]
+  reads           MessageRead[]
+
+  @@index([channelId])
+  @@index([createdAt])
+  @@index([senderId])
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  FILE
+  SYSTEM
+  AI
+}
+
+// ─────────────────────────────────────────────────────────────
+// Attachment — Files attached to a message
+// ─────────────────────────────────────────────────────────────
+model Attachment {
+  id          String   @id @default(uuid())
+  messageId   String
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  fileName    String
+  fileUrl     String
+  mimeType    String
+  fileSize    Int
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────
+// Reaction — Emoji reactions on messages
+// ─────────────────────────────────────────────────────────────
+model Reaction {
+  id          String   @id @default(uuid())
+  messageId   String
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji       String
+  createdAt   DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Mention — Mentions of users in messages
+// ─────────────────────────────────────────────────────────────
+model Mention {
+  id              String   @id @default(uuid())
+  messageId       String
+  message         Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  mentionedUserId String
+  mentionedUser   User     @relation("MentionedUser", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────
+// MessageRead — Read receipts
+// ─────────────────────────────────────────────────────────────
+model MessageRead {
+  id          String   @id @default(uuid())
+  messageId   String
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt      DateTime @default(now())
+
+  @@unique([messageId, userId])
 }

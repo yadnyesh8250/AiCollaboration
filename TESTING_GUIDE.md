@@ -124,3 +124,7 @@ User B is now a `MEMBER`. Let's see if they can update the workspace name.
 If you open your MySQL database (or run `npx prisma studio`), you can verify that the Audit Logs and Notifications were created automatically behind the scenes!
 - Check the `AuditLog` table: You should see logs for Workspace Created, User Invited, and Invite Accepted.
 - Check the `Notification` table: You should see a notification sent to User A when User B accepted the invite.
+
+
+
+so this is the file where we are keeping the track of the project

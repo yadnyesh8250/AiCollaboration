@@ -39,6 +39,8 @@ model User {
   reactions            Reaction[]
   mentionsReceived     Mention[]         @relation("MentionedUser")
   messageReads         MessageRead[]
+  aiConversations      AIConversation[]
+  aiAuditLogs          AIAuditLog[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -82,6 +84,15 @@ model Workspace {
   members WorkspaceMember[]
   invites WorkspaceInvite[]
   channels Channel[]
+  aiConversations      AIConversation[]
+  aiConfig             WorkspaceAIConfig?
+  aiPersona            WorkspaceAIPersona?
+  aiPermissions        AIPermission[]
+  aiAuditLogs          AIAuditLog[]
+  aiCache              AICache[]
+  aiJobs               AIJob[]
+  workspaceKnowledge   WorkspaceKnowledge[]
+  workspaceMemory      WorkspaceMemory[]
 
   @@unique([organizationId, slug])      // slug unique per org
 }
@@ -355,4 +366,178 @@ model MessageRead {
   readAt      DateTime @default(now())
 
   @@unique([messageId, userId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// AIConversation — ChatGPT-like multi-turn threads
+// ─────────────────────────────────────────────────────────────
+model AIConversation {
+  id          String       @id @default(uuid())
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   String
+  user        User         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  title       String       @default("New Chat")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  messages    AIMessage[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// AIMessage — Message nodes supporting conversation branching
+// ─────────────────────────────────────────────────────────────
+model AIMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           AIRole
+  content        String         @db.Text
+  parentId       String?
+  parent         AIMessage?     @relation("Branching", fields: [parentId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+
+  branches       AIMessage[]    @relation("Branching")
+}
+
+enum AIRole {
+  SYSTEM
+  USER
+  ASSISTANT
+}
+
+// ─────────────────────────────────────────────────────────────
+// WorkspaceMemory — Key-Value configurations for system prompt instructions
+// ─────────────────────────────────────────────────────────────
+model WorkspaceMemory {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  key         String
+  value       String    @db.Text
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, key])
+}
+
+// ─────────────────────────────────────────────────────────────
+// WorkspaceKnowledge — Unstructured pages indexed for RAG
+// ─────────────────────────────────────────────────────────────
+model WorkspaceKnowledge {
+  id          String            @id @default(uuid())
+  workspaceId String
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category    KnowledgeCategory @default(FAQ)
+  title       String
+  content     String            @db.Text
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+enum KnowledgeCategory {
+  FAQ
+  STANDARD
+  SPRINT_GOALS
+  DEPLOYMENT
+}
+
+// ─────────────────────────────────────────────────────────────
+// AIPermission — Restricts AI tools inside a workspace
+// ─────────────────────────────────────────────────────────────
+model AIPermission {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  toolName    String
+  isAllowed   Boolean   @default(true)
+
+  @@unique([workspaceId, toolName])
+}
+
+// ─────────────────────────────────────────────────────────────
+// AIAuditLog — Tracks credits, tokens, latency, cost
+// ─────────────────────────────────────────────────────────────
+model AIAuditLog {
+  id                String    @id @default(uuid())
+  workspaceId       String
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actorId           String
+  user              User      @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  prompt            String    @db.Text
+  agentType         String
+  toolUsed          String?
+  toolResult        String?   @db.Text
+  modelUsed         String
+  promptTokens      Int
+  completionTokens  Int
+  latencyMs         Int
+  estimatedCostUsd  Decimal   @db.Decimal(10, 6)
+  createdAt         DateTime  @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────
+// WorkspaceAIConfig — Configuration variables per workspace
+// ─────────────────────────────────────────────────────────────
+model WorkspaceAIConfig {
+  id                String    @id @default(uuid())
+  workspaceId       String    @unique
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  preferredModel    String    @default("gemini-2.5-flash")
+  temperature       Float     @default(0.7)
+  maxTokens         Int       @default(2048)
+  baseSystemPrompt  String?   @db.Text
+}
+
+// ─────────────────────────────────────────────────────────────
+// WorkspaceAIPersona — Personalities / AI profiles per workspace
+// ─────────────────────────────────────────────────────────────
+model WorkspaceAIPersona {
+  id          String      @id @default(uuid())
+  workspaceId String      @unique
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String      @default("CollabBot")
+  behavior    AIBehavior  @default(HELPFUL)
+}
+
+enum AIBehavior {
+  HELPFUL
+  STRICT
+  TECHNICAL
+  CREATIVE
+}
+
+// ─────────────────────────────────────────────────────────────
+// AICache — Intercepts requests to cut costs
+// ─────────────────────────────────────────────────────────────
+model AICache {
+  id           String    @id @default(uuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  queryHash    String
+  responseText String    @db.Text
+  expiresAt    DateTime
+
+  @@unique([workspaceId, queryHash])
+}
+
+// ─────────────────────────────────────────────────────────────
+// AIJob — Backend cron/async job queue logger
+// ─────────────────────────────────────────────────────────────
+model AIJob {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jobType     String
+  status      JobStatus @default(PENDING)
+  payload     Json?
+  result      String?   @db.Text
+  runAt       DateTime
+  createdAt   DateTime  @default(now())
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }

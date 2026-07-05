@@ -12,6 +12,8 @@ import invitationRoutes from "./routes/invitation.routes.js";
 import channelRoutes from "./routes/channel.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import attachmentRoutes from "./routes/attachment.routes.js";
+import aiFlatRoutes from "./routes/aiFlat.routes.js";
+import { startBackgroundWorkers } from "./services/queue.service.js";
 import path from "path";
 
 const app = express();
@@ -44,6 +46,7 @@ app.use("/api/invites", invitationRoutes);
 app.use("/api/channels", channelRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/attachments", attachmentRoutes);
+app.use("/api/ai", aiFlatRoutes);
 
 // ── 404 handler ─────────────────────────────────────────────────
 app.use((req, res) => {
@@ -62,4 +65,5 @@ app.set("io", io);
 
 server.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
+  startBackgroundWorkers();
 });

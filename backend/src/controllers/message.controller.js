@@ -59,7 +59,7 @@ export const createMessage = async (req, res) => {
     });
 
     // Process Mentions
-    await processMentions(content, message.id, req.user.id);
+    await processMentions(content, message.id, req.user.id, channelId);
 
     // Broadcast via socket
     if (req.io) {
@@ -213,7 +213,7 @@ export const editMessage = async (req, res) => {
     });
 
     // Re-process Mentions in case they changed
-    await processMentions(content, updated.id, req.user.id);
+    await processMentions(content, updated.id, req.user.id, updated.channelId);
 
     if (req.io) {
       req.io.to(`channel:${updated.channelId}`).emit("editMessage", updated);

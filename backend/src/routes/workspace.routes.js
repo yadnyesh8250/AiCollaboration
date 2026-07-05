@@ -13,6 +13,7 @@ import {
   removeMember,
 } from "../controllers/workspaceMember.controller.js";
 import channelRoutes from "./channel.routes.js";
+import aiRoutes from "./ai.routes.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { requireWorkspaceRole } from "../middleware/rbac.middleware.js";
 
@@ -29,6 +30,9 @@ router.get("/", listWorkspaces);
 
 // Channel routes (nested under /api/workspaces/:workspaceId/channels)
 router.use("/:workspaceId/channels", channelRoutes);
+
+// AI routes (nested under /api/workspaces/:workspaceId/ai)
+router.use("/:workspaceId/ai", aiRoutes);
 
 // Flat workspace routes (mounted under /api/workspaces)
 router.get("/:workspaceId", requireWorkspaceRole(["OWNER", "ADMIN", "MEMBER", "VIEWER"]), getWorkspace);

@@ -1,0 +1,89 @@
+import prisma from "../config/db.js";
+
+/**
+ * Tool Registry Action Executor
+ * Takes LLM tool names and runs the corresponding database changes.
+ */
+export const executeTool = async ({ workspaceId, actorId, toolName, args }) => {
+  // 1. Verify workspace permission for this tool
+  const permission = await prisma.aIPermission.findUnique({
+    where: {
+      workspaceId_toolName: {
+        workspaceId,
+        toolName
+      }
+    }
+  });
+
+  // If permission explicitly set to false, block execution
+  if (permission && !permission.isAllowed) {
+    throw new Error(`Execution of tool '${toolName}' is disabled in this workspace.`);
+  }
+
+  console.log(`[ToolRegistry] Executing '${toolName}' with args:`, args);
+
+  switch (toolName) {
+    case "createTask": {
+      // Mock execution until Phase 5 Task Module is built
+      const taskTitle = args.title;
+      const assignee = args.assigneeUsername || "UNASSIGNED";
+      const desc = args.description || "";
+      
+      console.log(`[ToolRegistry] MOCKED TASK CREATION: "${taskTitle}" assigned to ${assignee}`);
+      return {
+        success: true,
+        message: `Task '${taskTitle}' successfully created and assigned to ${assignee} (Mocked)`,
+        task: { title: taskTitle, assignee, desc }
+      };
+    }
+
+    case "createChannel": {
+      const channelName = args.name;
+      const slug = channelName.toLowerCase().replace(/\s+/g, "-");
+      const type = args.type || "PUBLIC";
+      const description = args.description || "";
+
+      const channel = await prisma.channel.create({
+        data: {
+          workspaceId,
+          name: channelName,
+          slug,
+          description,
+          type,
+          createdBy: actorId
+        }
+      });
+
+      return {
+        success: true,
+        message: `Channel '#${channelName}' created successfully.`,
+        channel
+      };
+    }
+
+    case "searchMessages": {
+      const query = args.query;
+      
+      // Perform case-insensitive full-text style match over Messages in this workspace
+      const messages = await prisma.message.findMany({
+        where: {
+          channel: { workspaceId },
+          content: { contains: query },
+          deletedAt: null
+        },
+        take: 10,
+        include: { sender: { select: { username: true } }, channel: { select: { name: true } } }
+      });
+
+      const results = messages.map(m => `[#${m.channel.name}] @${m.sender.username}: "${m.content}"`);
+
+      return {
+        success: true,
+        results: results.length > 0 ? results : ["No matching messages found."]
+      };
+    }
+
+    default:
+      throw new Error(`Tool '${toolName}' is not registered in the tool executor.`);
+  }
+};

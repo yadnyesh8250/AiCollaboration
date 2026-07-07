@@ -41,6 +41,16 @@ model User {
   messageReads         MessageRead[]
   aiConversations      AIConversation[]
   aiAuditLogs          AIAuditLog[]
+
+  // Phase 5 relations
+  tasksCreated         Task[]            @relation("TaskCreatedBy")
+  tasksAssigned        Task[]            @relation("TaskAssignedTo")
+  taskComments         TaskComment[]
+  taskActivities       TaskActivity[]
+  documentsCreated     Document[]        @relation("DocumentCreatedBy")
+  documentVersions     DocumentVersion[]
+  documentComments     DocumentComment[]
+  documentPermissions  DocumentPermission[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -93,6 +103,12 @@ model Workspace {
   aiJobs               AIJob[]
   workspaceKnowledge   WorkspaceKnowledge[]
   workspaceMemory      WorkspaceMemory[]
+
+  // Phase 5 relations
+  tasks                Task[]
+  labels               Label[]
+  sprints              Sprint[]
+  documents            Document[]
 
   @@unique([organizationId, slug])      // slug unique per org
 }
@@ -540,4 +556,291 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// ─────────────────────────────────────────────────────────────
+// Task — Jira-style tasks
+// ─────────────────────────────────────────────────────────────
+model Task {
+  id             String         @id @default(uuid())
+  workspaceId    String
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?        @db.Text
+  status         TaskStatus     @default(TODO)
+  priority       TaskPriority   @default(MEDIUM)
+  type           TaskType       @default(TASK)
+  createdBy      String
+  creator        User           @relation("TaskCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  assignedTo     String?
+  assignee       User?          @relation("TaskAssignedTo", fields: [assignedTo], references: [id], onDelete: SetNull)
+  startDate      DateTime?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  estimatedHours Float?
+  actualHours    Float?
+  position       Float          @default(1000.0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  comments       TaskComment[]
+  attachments    TaskAttachment[]
+  activities     TaskActivity[]
+  labels         TaskLabel[]
+  sprints        SprintTask[]
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([assignedTo])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  BLOCKED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskType {
+  TASK
+  BUG
+  FEATURE
+  EPIC
+  STORY
+  SUBTASK
+}
+
+// ─────────────────────────────────────────────────────────────
+// TaskComment — Threaded discussions on tasks
+// ─────────────────────────────────────────────────────────────
+model TaskComment {
+  id        String    @id @default(uuid())
+  taskId    String
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String    @db.Text
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([taskId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Label — Color-coded tags
+// ─────────────────────────────────────────────────────────────
+model Label {
+  id          String      @id @default(uuid())
+  workspaceId String
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  color       String
+  tasks       TaskLabel[]
+
+  @@unique([workspaceId, name])
+}
+
+// ─────────────────────────────────────────────────────────────
+// TaskLabel — Many-to-many join table for tasks and labels
+// ─────────────────────────────────────────────────────────────
+model TaskLabel {
+  taskId  String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// TaskAttachment — Message files attached to a task
+// ─────────────────────────────────────────────────────────────
+model TaskAttachment {
+  id         String   @id @default(uuid())
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileUrl    String
+  mimeType   String
+  fileSize   Int
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  @@index([taskId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// TaskActivity — Audit log of task modifications
+// ─────────────────────────────────────────────────────────────
+model TaskActivity {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorId   String
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  action    String
+  oldValue  String?  @db.Text
+  newValue  String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sprint — Sprint cycle management
+// ─────────────────────────────────────────────────────────────
+model Sprint {
+  id          String       @id @default(uuid())
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  goal        String?      @db.Text
+  startDate   DateTime
+  endDate     DateTime
+  status      SprintStatus @default(PLANNED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tasks       SprintTask[]
+
+  @@index([workspaceId])
+}
+
+enum SprintStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+}
+
+// ─────────────────────────────────────────────────────────────
+// SprintTask — Many-to-many join table for sprints and tasks
+// ─────────────────────────────────────────────────────────────
+model SprintTask {
+  sprintId String
+  sprint   Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  taskId   String
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([sprintId, taskId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Document — Notion-style documents
+// ─────────────────────────────────────────────────────────────
+model Document {
+  id               String            @id @default(uuid())
+  workspaceId      String
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title            String
+  slug             String
+  icon             String?
+  coverImage       String?
+  createdBy        String
+  creator          User              @relation("DocumentCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  parentDocumentId String?
+  parentDocument   Document?         @relation("DocumentHierarchy", fields: [parentDocumentId], references: [id], onDelete: Cascade)
+  childDocuments   Document[]        @relation("DocumentHierarchy")
+  visibility       DocumentVisibility @default(WORKSPACE)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  blocks           DocumentBlock[]
+  versions         DocumentVersion[]
+  comments         DocumentComment[]
+  permissions      DocumentPermission[]
+
+  @@unique([workspaceId, slug])
+}
+
+enum DocumentVisibility {
+  PUBLIC
+  WORKSPACE
+  PRIVATE
+}
+
+// ─────────────────────────────────────────────────────────────
+// DocumentBlock — Granular document contents
+// ─────────────────────────────────────────────────────────────
+model DocumentBlock {
+  id         String            @id @default(uuid())
+  documentId String
+  document   Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  type       DocumentBlockType
+  content    String            @db.Text
+  position   Float             @default(1000.0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([documentId])
+}
+
+enum DocumentBlockType {
+  HEADING
+  PARAGRAPH
+  CHECKLIST
+  CODE
+  QUOTE
+  TABLE
+  IMAGE
+  DIVIDER
+}
+
+// ─────────────────────────────────────────────────────────────
+// DocumentVersion — Snapshot-based page versioning
+// ─────────────────────────────────────────────────────────────
+model DocumentVersion {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version    Int
+  content    String   @db.Text
+  editedBy   String
+  editor     User     @relation(fields: [editedBy], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// DocumentComment — In-page commenting
+// ─────────────────────────────────────────────────────────────
+model DocumentComment {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// DocumentPermission — User specific overrides
+// ─────────────────────────────────────────────────────────────
+model DocumentPermission {
+  id         String                 @id @default(uuid())
+  documentId String
+  document   Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       DocumentPermissionRole
+
+  @@unique([documentId, userId])
+}
+
+enum DocumentPermissionRole {
+  OWNER
+  EDITOR
+  COMMENTER
+  VIEWER
 }

@@ -24,16 +24,50 @@ export const executeTool = async ({ workspaceId, actorId, toolName, args }) => {
 
   switch (toolName) {
     case "createTask": {
-      // Mock execution until Phase 5 Task Module is built
       const taskTitle = args.title;
-      const assignee = args.assigneeUsername || "UNASSIGNED";
       const desc = args.description || "";
-      
-      console.log(`[ToolRegistry] MOCKED TASK CREATION: "${taskTitle}" assigned to ${assignee}`);
+      const assigneeUsername = args.assigneeUsername;
+
+      let assignedTo = null;
+      if (assigneeUsername) {
+        const user = await prisma.user.findUnique({
+          where: { username: assigneeUsername }
+        });
+        if (user) {
+          const isMember = await prisma.workspaceMember.findUnique({
+            where: { userId_workspaceId: { userId: user.id, workspaceId } }
+          });
+          if (isMember) {
+            assignedTo = user.id;
+          }
+        }
+      }
+
+      const maxTask = await prisma.task.findFirst({
+        where: { workspaceId, status: "TODO" },
+        orderBy: { position: "desc" },
+        select: { position: true }
+      });
+      const position = maxTask ? maxTask.position + 1000.0 : 1000.0;
+
+      const task = await prisma.task.create({
+        data: {
+          workspaceId,
+          title: taskTitle,
+          description: desc,
+          status: "TODO",
+          priority: "MEDIUM",
+          type: "TASK",
+          createdBy: actorId,
+          assignedTo,
+          position
+        }
+      });
+
       return {
         success: true,
-        message: `Task '${taskTitle}' successfully created and assigned to ${assignee} (Mocked)`,
-        task: { title: taskTitle, assignee, desc }
+        message: `Task '${taskTitle}' created successfully${assigneeUsername ? ` and assigned to @${assigneeUsername}` : ""}.`,
+        task
       };
     }
 

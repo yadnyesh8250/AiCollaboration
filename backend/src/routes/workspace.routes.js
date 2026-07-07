@@ -14,6 +14,14 @@ import {
 } from "../controllers/workspaceMember.controller.js";
 import channelRoutes from "./channel.routes.js";
 import aiRoutes from "./ai.routes.js";
+
+// Phase 5 imports
+import { workspaceTaskRouter } from "../modules/task/task.routes.js";
+import { workspaceSprintRouter } from "../modules/sprint/sprint.routes.js";
+import { workspaceLabelRouter } from "../modules/label/label.routes.js";
+import { workspaceDocumentRouter } from "../modules/document/document.routes.js";
+import workspaceDashboardRouter from "../modules/dashboard/dashboard.routes.js";
+
 import { protect } from "../middleware/auth.middleware.js";
 import { requireWorkspaceRole } from "../middleware/rbac.middleware.js";
 
@@ -23,8 +31,6 @@ const router = Router({ mergeParams: true });
 router.use(protect);
 
 // Workspace CRUD (nested under /api/organizations/:orgId/workspaces)
-// These routes do NOT have :workspaceId, so we can't use requireWorkspaceRole here.
-// They use requireOrgRole from organization.routes.js.
 router.post("/", createWorkspace);
 router.get("/", listWorkspaces);
 
@@ -33,6 +39,13 @@ router.use("/:workspaceId/channels", channelRoutes);
 
 // AI routes (nested under /api/workspaces/:workspaceId/ai)
 router.use("/:workspaceId/ai", aiRoutes);
+
+// Phase 5 Workspace Scoped Nested Routes
+router.use("/:workspaceId/tasks", workspaceTaskRouter);
+router.use("/:workspaceId/sprints", workspaceSprintRouter);
+router.use("/:workspaceId/labels", workspaceLabelRouter);
+router.use("/:workspaceId/documents", workspaceDocumentRouter);
+router.use("/:workspaceId", workspaceDashboardRouter);
 
 // Flat workspace routes (mounted under /api/workspaces)
 router.get("/:workspaceId", requireWorkspaceRole(["OWNER", "ADMIN", "MEMBER", "VIEWER"]), getWorkspace);

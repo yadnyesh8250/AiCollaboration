@@ -171,3 +171,75 @@ export const streamModel = async ({ workspaceId, systemInstruction, prompt, onCh
     modelUsed: modelName
   };
 };
+
+/**
+ * Interface to request structured JSON output from Google Gemini.
+ */
+export const queryModelJSON = async ({ workspaceId, actorId, systemInstruction, prompt, responseSchema = null }) => {
+  const config = await prisma.workspaceAIConfig.findUnique({
+    where: { workspaceId }
+  });
+
+  const modelName = config?.preferredModel || "gemini-2.5-flash";
+  const temperature = config?.temperature ?? 0.7;
+  const maxTokens = config?.maxTokens ?? 2048;
+
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction,
+    generationConfig: {
+      temperature,
+      maxOutputTokens: maxTokens,
+      responseMimeType: "application/json",
+      ...(responseSchema && { responseSchema })
+    }
+  });
+
+  const startTime = Date.now();
+
+  // Count prompt tokens
+  const countResult = await model.countTokens(prompt);
+  const promptTokens = countResult.totalTokens;
+
+  // Run generation
+  const result = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
+  const response = result.response;
+  
+  const latencyMs = Date.now() - startTime;
+  const contentText = response.text() || "{}";
+  
+  // Count completion tokens
+  const completionResult = await model.countTokens(contentText);
+  const completionTokens = completionResult.totalTokens;
+
+  // Cost calculation
+  const estimatedCostUsd = (promptTokens * PRICING.INPUT_COST_PER_TOKEN) + 
+                           (completionTokens * PRICING.OUTPUT_COST_PER_TOKEN);
+
+  // Log AI Cost Metrics to Audit Logs
+  try {
+    await prisma.aIAuditLog.create({
+      data: {
+        workspaceId,
+        actorId,
+        prompt: prompt.substring(0, 500),
+        agentType: "PRODUCTIVITY",
+        modelUsed: modelName,
+        promptTokens,
+        completionTokens,
+        latencyMs,
+        estimatedCostUsd
+      }
+    });
+  } catch (err) {
+    console.error("[AICostLog] Failed to audit:", err);
+  }
+
+  return {
+    content: JSON.parse(contentText),
+    promptTokens,
+    completionTokens,
+    latencyMs,
+    estimatedCostUsd
+  };
+};

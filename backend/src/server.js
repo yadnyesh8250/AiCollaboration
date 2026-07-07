@@ -13,6 +13,16 @@ import channelRoutes from "./routes/channel.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import attachmentRoutes from "./routes/attachment.routes.js";
 import aiFlatRoutes from "./routes/aiFlat.routes.js";
+
+// Phase 5 imports
+import { flatTaskRouter } from "./modules/task/task.routes.js";
+import { generalSprintRouter } from "./modules/sprint/sprint.routes.js";
+import { generalLabelRouter } from "./modules/label/label.routes.js";
+import { flatDocumentRouter } from "./modules/document/document.routes.js";
+import commentRouter from "./modules/comment/comment.routes.js";
+import taskAttachmentRouter from "./modules/attachment/attachment.routes.js";
+import searchRouter from "./modules/search/search.routes.js";
+
 import { startBackgroundWorkers } from "./services/queue.service.js";
 import path from "path";
 
@@ -47,6 +57,15 @@ app.use("/api/channels", channelRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/attachments", attachmentRoutes);
 app.use("/api/ai", aiFlatRoutes);
+
+// Phase 5 Routes
+app.use("/api/tasks", flatTaskRouter);
+app.use("/api", generalSprintRouter);
+app.use("/api", generalLabelRouter);
+app.use("/api/documents", flatDocumentRouter);
+app.use("/api", commentRouter);
+app.use("/api", taskAttachmentRouter);
+app.use("/api/search", searchRouter);
 
 // ── 404 handler ─────────────────────────────────────────────────
 app.use((req, res) => {

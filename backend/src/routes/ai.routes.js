@@ -11,17 +11,27 @@ import {
   getAnalytics,
   queueJobRequest
 } from "../controllers/ai.controller.js";
+import {
+  generateTasks,
+  generateDocument
+} from "../controllers/aiProductivity.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { requireWorkspaceRole } from "../middleware/rbac.middleware.js";
+import { aiLimiter } from "../middleware/rateLimit.middleware.js";
 
 const router = Router({ mergeParams: true });
 
 router.use(protect);
+router.use(aiLimiter);
 
 // Nested routes under /api/workspaces/:workspaceId/ai
 // Conversations & Config require MEMBER/ADMIN/OWNER access
 router.post("/conversations", requireWorkspaceRole(["OWNER", "ADMIN", "MEMBER"]), createConversation);
 router.get("/conversations", requireWorkspaceRole(["OWNER", "ADMIN", "MEMBER", "VIEWER"]), listConversations);
+
+// AI Productivity Automation (Member or above can generate tasks/documents)
+router.post("/task-generate", requireWorkspaceRole(["OWNER", "ADMIN", "MEMBER"]), generateTasks);
+router.post("/doc-generate", requireWorkspaceRole(["OWNER", "ADMIN", "MEMBER"]), generateDocument);
 
 // Config, Persona, Permissions, Jobs, Analytics require ADMIN/OWNER access
 router.patch("/config", requireWorkspaceRole(["OWNER", "ADMIN"]), updateAIConfig);

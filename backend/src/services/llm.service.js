@@ -1,6 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import crypto from "crypto";
 import prisma from "../config/db.js";
-
+import { parseLLMJSON } from "../utils/json.js";
+import { aiLogger } from "../utils/logger.js";
+import { redisClient, isRedisAvailable } from "../config/redis.js";
 
 // Note: Using the official `@google/generative-ai` SDK
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -9,6 +12,33 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const PRICING = {
   INPUT_COST_PER_TOKEN: 0.000000075, // $0.075 / 1M tokens
   OUTPUT_COST_PER_TOKEN: 0.00000030,  // $0.30 / 1M tokens
+};
+
+/**
+ * Exponential Backoff Retry wrapper for transient Gemini API errors (e.g. 503, 429)
+ */
+const makeModelRequestWithRetries = async (fn, maxRetries = 3, initialDelay = 1500) => {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      attempt++;
+      const status = err.status || (err.response && err.response.status);
+      const isTransient = status === 503 || status === 429 || 
+                          err.message.includes("high demand") || 
+                          err.message.includes("Service Unavailable") ||
+                          err.message.includes("temporary");
+      
+      if (isTransient && attempt < maxRetries) {
+        const delayMs = initialDelay * Math.pow(2, attempt);
+        aiLogger.warn({ status, attempt, maxRetries, delayMs }, "Gemini API transient error, retrying");
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      } else {
+        throw err;
+      }
+    }
+  }
 };
 
 /**
@@ -60,13 +90,31 @@ export const getAITools = () => {
  * Interface to communicate with Google Gemini.
  */
 export const queryModel = async ({ workspaceId, systemInstruction, prompt, useTools = false }) => {
+  // Generate Cache Key
+  const cacheKeyStr = `${systemInstruction || ""}:${prompt}:${useTools}`;
+  const hash = crypto.createHash("sha256").update(cacheKeyStr).digest("hex");
+  const cacheKey = `ai:cache:${workspaceId || "global"}:${hash}`;
+
+  // Read AI Cache
+  if (isRedisAvailable && redisClient) {
+    try {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        aiLogger.info({ workspaceId, cacheKey }, "AI Cache Hit in Redis");
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      aiLogger.warn({ err }, "Failed to read AI Cache from Redis");
+    }
+  }
+
   const config = await prisma.workspaceAIConfig.findUnique({
     where: { workspaceId }
   });
 
   const modelName = config?.preferredModel || "gemini-2.5-flash";
   const temperature = config?.temperature ?? 0.7;
-  const maxTokens = config?.maxTokens ?? 2048;
+  const maxTokens = config?.maxTokens ?? 4096;
 
   const model = genAI.getGenerativeModel({
     model: modelName,
@@ -88,8 +136,10 @@ export const queryModel = async ({ workspaceId, systemInstruction, prompt, useTo
   const countResult = await model.countTokens(prompt);
   const promptTokens = countResult.totalTokens;
 
-  // Run generation
-  const result = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }], ...options });
+  // Run generation with retries
+  const result = await makeModelRequestWithRetries(() => 
+    model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }], ...options })
+  );
   const response = result.response;
   
   const latencyMs = Date.now() - startTime;
@@ -106,7 +156,7 @@ export const queryModel = async ({ workspaceId, systemInstruction, prompt, useTo
   // Check if model returned function calls
   const functionCalls = response.functionCalls || [];
 
-  return {
+  const resultData = {
     content: contentText,
     promptTokens,
     completionTokens,
@@ -115,6 +165,18 @@ export const queryModel = async ({ workspaceId, systemInstruction, prompt, useTo
     modelUsed: modelName,
     functionCall: functionCalls.length > 0 ? functionCalls[0] : null
   };
+
+  // Save in Redis AI Cache (1 hour expiration)
+  if (isRedisAvailable && redisClient) {
+    try {
+      await redisClient.set(cacheKey, JSON.stringify(resultData), "EX", 3600);
+      aiLogger.info({ workspaceId, cacheKey }, "AI response saved to Redis Cache");
+    } catch (err) {
+      aiLogger.warn({ err }, "Failed to write AI response to Redis Cache");
+    }
+  }
+
+  return resultData;
 };
 
 /**
@@ -127,7 +189,7 @@ export const streamModel = async ({ workspaceId, systemInstruction, prompt, onCh
 
   const modelName = config?.preferredModel || "gemini-2.5-flash";
   const temperature = config?.temperature ?? 0.7;
-  const maxTokens = config?.maxTokens ?? 2048;
+  const maxTokens = config?.maxTokens ?? 4096;
 
   const model = genAI.getGenerativeModel({
     model: modelName,
@@ -144,7 +206,10 @@ export const streamModel = async ({ workspaceId, systemInstruction, prompt, onCh
   const countResult = await model.countTokens(prompt);
   const promptTokens = countResult.totalTokens;
 
-  const result = await model.generateContentStream({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
+  // Run stream generation with retries
+  const result = await makeModelRequestWithRetries(() =>
+    model.generateContentStream({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
+  );
 
   let fullText = "";
   for await (const chunk of result.stream) {
@@ -182,7 +247,7 @@ export const queryModelJSON = async ({ workspaceId, actorId, systemInstruction, 
 
   const modelName = config?.preferredModel || "gemini-2.5-flash";
   const temperature = config?.temperature ?? 0.7;
-  const maxTokens = config?.maxTokens ?? 2048;
+  const maxTokens = config?.maxTokens ?? 4096;
 
   const model = genAI.getGenerativeModel({
     model: modelName,
@@ -201,8 +266,10 @@ export const queryModelJSON = async ({ workspaceId, actorId, systemInstruction, 
   const countResult = await model.countTokens(prompt);
   const promptTokens = countResult.totalTokens;
 
-  // Run generation
-  const result = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
+  // Run generation with retries
+  const result = await makeModelRequestWithRetries(() =>
+    model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
+  );
   const response = result.response;
   
   const latencyMs = Date.now() - startTime;
@@ -232,11 +299,11 @@ export const queryModelJSON = async ({ workspaceId, actorId, systemInstruction, 
       }
     });
   } catch (err) {
-    console.error("[AICostLog] Failed to audit:", err);
+    aiLogger.error({ err }, "Failed to audit AI cost log");
   }
 
   return {
-    content: JSON.parse(contentText),
+    content: parseLLMJSON(contentText),
     promptTokens,
     completionTokens,
     latencyMs,

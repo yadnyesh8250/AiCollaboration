@@ -38,10 +38,6 @@ export const createTask = async (req, res) => {
       position
     } = req.body;
 
-    if (!title) {
-      return res.status(400).json({ success: false, message: "title is required." });
-    }
-
     // Verify assignedTo user is a workspace member (if provided)
     if (assignedTo) {
       const isMember = await prisma.workspaceMember.findUnique({
@@ -231,6 +227,8 @@ export const updateTask = async (req, res) => {
     if (!wsMember || wsMember.role === "VIEWER") {
       return res.status(403).json({ success: false, message: "Access denied. Only members can update tasks." });
     }
+
+
 
     // Verify assignee user exists in workspace if changing it
     if (updates.assignedTo) {

@@ -30,10 +30,6 @@ export const createSprint = async (req, res) => {
     const { workspaceId } = req.params;
     const { name, goal, startDate, endDate } = req.body;
 
-    if (!name || !startDate || !endDate) {
-      return res.status(400).json({ success: false, message: "name, startDate, and endDate are required." });
-    }
-
     const sprint = await prisma.sprint.create({
       data: {
         workspaceId,

@@ -52,10 +52,6 @@ export const createDocument = async (req, res) => {
     const { workspaceId } = req.params;
     const { title, parentDocumentId, visibility = "WORKSPACE", icon, coverImage } = req.body;
 
-    if (!title) {
-      return res.status(400).json({ success: false, message: "title is required." });
-    }
-
     // Generate url friendly slug from title + random prefix
     const baseSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     const random = Math.floor(1000 + Math.random() * 9000);
@@ -242,16 +238,25 @@ export const bulkUpdateBlocks = async (req, res) => {
     }
 
     // Execute in a transaction: delete previous blocks, insert new blocks
+    const allowedTypes = ["HEADING", "PARAGRAPH", "CHECKLIST", "CODE", "QUOTE", "TABLE", "IMAGE", "DIVIDER"];
+    const blocksData = blocks.map(b => {
+      const type = allowedTypes.includes(b.type) ? b.type : "PARAGRAPH";
+      const item = {
+        documentId,
+        type,
+        content: b.content || "",
+        position: parseFloat(b.position || 1000.0)
+      };
+      if (b.id) {
+        item.id = b.id;
+      }
+      return item;
+    });
+
     await prisma.$transaction([
       prisma.documentBlock.deleteMany({ where: { documentId } }),
       prisma.documentBlock.createMany({
-        data: blocks.map(b => ({
-          id: b.id || undefined, // Allow client to pass UUID
-          documentId,
-          type: b.type,
-          content: b.content || "",
-          position: parseFloat(b.position || 1000.0)
-        }))
+        data: blocksData
       })
     ]);
 
@@ -427,9 +432,7 @@ export const updateDocumentPermission = async (req, res) => {
     const { documentId } = req.params;
     const { userId, role } = req.body; // role: OWNER, EDITOR, COMMENTER, VIEWER
 
-    if (!userId || !role) {
-      return res.status(400).json({ success: false, message: "userId and role are required." });
-    }
+
 
     const docRole = await getDocumentRole(documentId, req.user.id);
     if (docRole !== "OWNER") {

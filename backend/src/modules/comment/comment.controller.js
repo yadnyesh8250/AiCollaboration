@@ -11,9 +11,7 @@ export const createTaskComment = async (req, res) => {
     const { taskId } = req.params;
     const { content } = req.body;
 
-    if (!content) {
-      return res.status(400).json({ success: false, message: "content is required." });
-    }
+
 
     const task = await prisma.task.findUnique({
       where: { id: taskId }
@@ -126,9 +124,7 @@ export const updateTaskComment = async (req, res) => {
     const { id } = req.params;
     const { content } = req.body;
 
-    if (!content) {
-      return res.status(400).json({ success: false, message: "content is required." });
-    }
+
 
     const comment = await prisma.taskComment.findUnique({
       where: { id },
@@ -206,9 +202,7 @@ export const createDocumentComment = async (req, res) => {
     const { documentId } = req.params;
     const { content } = req.body;
 
-    if (!content) {
-      return res.status(400).json({ success: false, message: "content is required." });
-    }
+
 
     const doc = await prisma.document.findUnique({
       where: { id: documentId }

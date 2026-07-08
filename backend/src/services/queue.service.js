@@ -1,17 +1,18 @@
 import cron from "node-cron";
 import prisma from "../config/db.js";
 import { queryModel } from "./llm.service.js";
+import { workerLogger } from "../utils/logger.js";
 
 /**
  * AI Job Queue Processor
  */
 export const startBackgroundWorkers = () => {
-  console.log("🚀 [AIWorker] Background workers initialized.");
+  workerLogger.info("🚀 Background workers initialized.");
 
   // Daily Summary Cron: Every day at 9:00 AM (0 9 * * *)
   // For development testing we can also trigger it on a shorter interval, but let's stick to spec.
   cron.schedule("0 9 * * *", async () => {
-    console.log("[AIWorker] Triggering Daily Summary Cron job...");
+    workerLogger.info("Triggering Daily Summary Cron job...");
     const workspaces = await prisma.workspace.findMany();
     
     for (const ws of workspaces) {
@@ -63,7 +64,7 @@ const processNextQueueJob = async () => {
     data: { status: "PROCESSING" }
   });
 
-  console.log(`[AIWorker] Processing job ${job.id} (${job.jobType})...`);
+  workerLogger.info({ jobId: job.id, jobType: job.jobType }, "Processing queue job");
 
   try {
     let resultText = "";
@@ -115,9 +116,9 @@ const processNextQueueJob = async () => {
       data: { status: "COMPLETED", result: resultText }
     });
 
-    console.log(`[AIWorker] Job ${job.id} completed successfully.`);
+    workerLogger.info({ jobId: job.id }, "Job completed successfully.");
   } catch (err) {
-    console.error(`[AIWorker] Job ${job.id} failed:`, err);
+    workerLogger.error({ jobId: job.id, err }, "Job execution failed.");
     await prisma.aIJob.update({
       where: { id: job.id },
       data: { status: "FAILED", result: err.message }

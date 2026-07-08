@@ -33,14 +33,6 @@ export const register = async (req, res) => {
   try {
     const { email, username, password } = req.body;
 
-    if (!email || !username || !password) {
-      return res.status(400).json({ success: false, message: "email, username, and password are required." });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, message: "Password must be at least 6 characters." });
-    }
-
     const existing = await prisma.user.findFirst({
       where: { OR: [{ email }, { username }] },
     });
@@ -79,10 +71,6 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { emailOrUsername, password } = req.body;
-
-    if (!emailOrUsername || !password) {
-      return res.status(400).json({ success: false, message: "emailOrUsername and password are required." });
-    }
 
     const user = await prisma.user.findFirst({
       where: {
@@ -195,9 +183,6 @@ export const logoutAll = async (req, res) => {
 export const refresh = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    if (!refreshToken) {
-      return res.status(400).json({ success: false, message: "refreshToken is required." });
-    }
 
     // 1. Verify token signature & expiry
     let decoded;

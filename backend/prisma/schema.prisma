@@ -72,6 +72,7 @@ model Organization {
   // relations
   workspaces Workspace[]
   members    OrganizationMember[]
+  @@index([ownerId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ model Workspace {
   documents            Document[]
 
   @@unique([organizationId, slug])      // slug unique per org
+  @@index([organizationId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -130,6 +132,7 @@ model WorkspaceMember {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])       // one membership per user per workspace
+  @@index([workspaceId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -162,6 +165,7 @@ model Session {
   // FK to User
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -179,6 +183,7 @@ model OrganizationMember {
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
+  @@index([organizationId])
 }
 
 enum OrganizationRole {
@@ -203,6 +208,8 @@ model WorkspaceInvite {
   status       InviteStatus  @default(PENDING)
   expiresAt    DateTime
   createdAt    DateTime      @default(now())
+  @@index([workspaceId])
+  @@index([invitedById])
 }
 
 enum InviteStatus {
@@ -225,6 +232,9 @@ model AuditLog {
   entityId       String?
   metadata       Json?
   createdAt      DateTime  @default(now())
+  @@index([actorId])
+  @@index([organizationId])
+  @@index([workspaceId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -239,6 +249,8 @@ model Notification {
   payload     Json?
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+  @@index([recipientId])
+  @@index([actorId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -261,6 +273,7 @@ model Channel {
   messages    Message[]
 
   @@unique([workspaceId, slug])
+  @@index([workspaceId])
 }
 
 enum ChannelType {
@@ -283,6 +296,7 @@ model ChannelMember {
   joinedAt    DateTime @default(now())
 
   @@unique([channelId, userId])
+  @@index([userId])
 }
 
 enum ChannelRole {
@@ -317,6 +331,7 @@ model Message {
   @@index([channelId])
   @@index([createdAt])
   @@index([senderId])
+  @@index([parentMessageId])
 }
 
 enum MessageType {
@@ -341,6 +356,7 @@ model Attachment {
   fileSize    Int
   uploadedBy  String
   createdAt   DateTime @default(now())
+  @@index([messageId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -356,6 +372,7 @@ model Reaction {
   createdAt   DateTime @default(now())
 
   @@unique([messageId, userId, emoji])
+  @@index([userId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -368,6 +385,8 @@ model Mention {
   mentionedUserId String
   mentionedUser   User     @relation("MentionedUser", fields: [mentionedUserId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now())
+  @@index([messageId])
+  @@index([mentionedUserId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -398,6 +417,8 @@ model AIConversation {
   updatedAt   DateTime     @updatedAt
 
   messages    AIMessage[]
+  @@index([workspaceId])
+  @@index([createdBy])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -414,6 +435,8 @@ model AIMessage {
   createdAt      DateTime       @default(now())
 
   branches       AIMessage[]    @relation("Branching")
+  @@index([conversationId])
+  @@index([parentId])
 }
 
 enum AIRole {
@@ -448,6 +471,7 @@ model WorkspaceKnowledge {
   content     String            @db.Text
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  @@index([workspaceId])
 }
 
 enum KnowledgeCategory {
@@ -489,6 +513,8 @@ model AIAuditLog {
   latencyMs         Int
   estimatedCostUsd  Decimal   @db.Decimal(10, 6)
   createdAt         DateTime  @default(now())
+  @@index([workspaceId])
+  @@index([actorId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -549,6 +575,8 @@ model AIJob {
   result      String?   @db.Text
   runAt       DateTime
   createdAt   DateTime  @default(now())
+  @@index([workspaceId])
+  @@index([status])
 }
 
 enum JobStatus {
@@ -592,6 +620,9 @@ model Task {
   @@index([workspaceId])
   @@index([status])
   @@index([assignedTo])
+  @@index([createdBy])
+  @@index([priority])
+  @@index([type])
 }
 
 enum TaskStatus {
@@ -633,6 +664,7 @@ model TaskComment {
   createdAt DateTime  @default(now())
 
   @@index([taskId])
+  @@index([authorId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -647,6 +679,7 @@ model Label {
   tasks       TaskLabel[]
 
   @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -659,6 +692,7 @@ model TaskLabel {
   label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@id([taskId, labelId])
+  @@index([labelId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -676,6 +710,7 @@ model TaskAttachment {
   createdAt  DateTime @default(now())
 
   @@index([taskId])
+  @@index([uploadedBy])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -693,6 +728,7 @@ model TaskActivity {
   createdAt DateTime @default(now())
 
   @@index([taskId])
+  @@index([actorId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -730,6 +766,7 @@ model SprintTask {
   task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@id([sprintId, taskId])
+  @@index([taskId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -758,6 +795,9 @@ model Document {
   permissions      DocumentPermission[]
 
   @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@index([createdBy])
+  @@index([parentDocumentId])
 }
 
 enum DocumentVisibility {
@@ -807,6 +847,7 @@ model DocumentVersion {
   createdAt  DateTime @default(now())
 
   @@index([documentId])
+  @@index([editedBy])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -822,6 +863,7 @@ model DocumentComment {
   createdAt  DateTime @default(now())
 
   @@index([documentId])
+  @@index([authorId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -836,6 +878,7 @@ model DocumentPermission {
   role       DocumentPermissionRole
 
   @@unique([documentId, userId])
+  @@index([userId])
 }
 
 enum DocumentPermissionRole {

@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: acollab-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: NIRAJ8250@123
+      MYSQL_DATABASE: collabai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pNIRAJ8250@123"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:alpine
+    container_name: acollab-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: acollab-backend
+    restart: always
+    ports:
+      - "5001:5001"
+    environment:
+      DATABASE_URL: mysql://root:NIRAJ8250@123@mysql:3306/collabai
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: acollab_super_secret_jwt_key_change_in_production
+      JWT_REFRESH_SECRET: acollab_super_secret_refresh_key_change_in_production
+      GEMINI_API_KEY: AQ.Ab8RN6L-OtrlJHPuftqDR0rEMsJhCGW78rseueqNSp1SJIUE6g
+      PORT: 5001
+      NODE_ENV: production
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Ensure migrations are automatically deployed before application starts
+    command: sh -c "npx prisma migrate deploy && npm start"
+
+volumes:
+  mysql-data:
+  redis-data:

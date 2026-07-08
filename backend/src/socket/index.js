@@ -1,8 +1,15 @@
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createRedisConnection, isRedisAvailable } from "../config/redis.js";
+import { socketLogger } from "../utils/logger.js";
 import { verifyToken } from "../utils/jwt.js";
 import prisma from "../config/db.js";
 
 let io;
+let pubClient;
+let subClient;
+
+export const getIO = () => io;
 
 export const initSocket = (httpServer) => {
   io = new Server(httpServer, {
@@ -11,6 +18,18 @@ export const initSocket = (httpServer) => {
       methods: ["GET", "POST"]
     }
   });
+
+  // Configure Redis Adapter for horizontal scaling if Redis is online
+  if (isRedisAvailable) {
+    try {
+      pubClient = createRedisConnection();
+      subClient = pubClient.duplicate();
+      io.adapter(createAdapter(pubClient, subClient));
+      socketLogger.info("⚡ [Socket] Redis Pub/Sub adapter registered.");
+    } catch (err) {
+      socketLogger.warn(`[Socket] Redis Adapter setup failed: ${err.message}. Falling back to default adapter.`);
+    }
+  }
 
   // Authentication Middleware
   io.use((socket, next) => {
@@ -28,7 +47,7 @@ export const initSocket = (httpServer) => {
   });
 
   io.on("connection", async (socket) => {
-    console.log(`[Socket] User connected: ${socket.user.id}`);
+    socketLogger.info({ userId: socket.user.id }, "User connected via WebSocket");
 
     // Update user status to ONLINE
     await prisma.user.update({
@@ -36,12 +55,11 @@ export const initSocket = (httpServer) => {
       data: { status: "ONLINE" }
     });
 
-    // Broadcast presence to all workspaces the user is in (optimization needed for large scale, but fine for now)
+    // Broadcast presence to all workspaces the user is in
     const memberships = await prisma.workspaceMember.findMany({
-      where: { userId: socket.user.id },
-      select: { workspaceId: true }
+      where: { userId: socket.user.id }
     });
-    
+
     memberships.forEach(m => {
       io.to(`workspace:${m.workspaceId}`).emit("userOnline", { userId: socket.user.id });
     });
@@ -49,7 +67,7 @@ export const initSocket = (httpServer) => {
     // Events for joining rooms
     socket.on("joinWorkspace", (workspaceId) => {
       socket.join(`workspace:${workspaceId}`);
-      console.log(`[Socket] User ${socket.user.id} joined workspace:${workspaceId}`);
+      socketLogger.info({ userId: socket.user.id, workspaceId }, "User joined workspace room");
     });
 
     socket.on("leaveWorkspace", (workspaceId) => {
@@ -58,7 +76,7 @@ export const initSocket = (httpServer) => {
 
     socket.on("joinChannel", (channelId) => {
       socket.join(`channel:${channelId}`);
-      console.log(`[Socket] User ${socket.user.id} joined channel:${channelId}`);
+      socketLogger.info({ userId: socket.user.id, channelId }, "User joined channel room");
     });
 
     socket.on("leaveChannel", (channelId) => {
@@ -76,14 +94,18 @@ export const initSocket = (httpServer) => {
 
     // Disconnect handling
     socket.on("disconnect", async () => {
-      console.log(`[Socket] User disconnected: ${socket.user.id}`);
+      socketLogger.info({ userId: socket.user.id }, "User disconnected from WebSocket");
       
       await prisma.user.update({
         where: { id: socket.user.id },
-        data: { status: "OFFLINE", updatedAt: new Date() } // Can use updatedAt as lastSeen
+        data: { status: "OFFLINE", updatedAt: new Date() }
       });
 
-      memberships.forEach(m => {
+      const memberOf = await prisma.workspaceMember.findMany({
+        where: { userId: socket.user.id }
+      });
+
+      memberOf.forEach(m => {
         io.to(`workspace:${m.workspaceId}`).emit("userOffline", { userId: socket.user.id });
       });
     });
@@ -92,9 +114,17 @@ export const initSocket = (httpServer) => {
   return io;
 };
 
-export const getIO = () => {
-  if (!io) {
-    throw new Error("Socket.io is not initialized!");
+/**
+ * Cleanup function to safely shutdown the Socket.io server and release Redis connections
+ */
+export const closeSocket = async () => {
+  if (io) {
+    io.close();
   }
-  return io;
+  if (pubClient) {
+    await pubClient.quit();
+  }
+  if (subClient) {
+    await subClient.quit();
+  }
 };

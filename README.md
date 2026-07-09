@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # A-Collab — Enterprise Workspace & Generative AI Assistant
 
 A-Collab is a comprehensive, production-grade workspace collaboration platform that unifies real-time communications, organization management, project planning, Notion-style collaborative documents, global search, and contextual AI agent pipelines into a single high-performance engine.
@@ -110,3 +111,6 @@ Use these documents to understand the architecture, algorithms, and APIs in dept
 * [Phase 2 (Workspace RBAC)](file:///Users/yadnyesh8250/Desktop/A-collab/TESTING_GUIDE.md) — Step-by-step Postman guide for permissions and invites.
 * [Phase 3 (Communication)](file:///Users/yadnyesh8250/Desktop/A-collab/PHASE_3_TESTING_GUIDE.md) — Step-by-step guide for messages, reactions, threads.
 * [Phase 4 (AI Assistant)](file:///Users/yadnyesh8250/Desktop/A-collab/PHASE_4_TESTING_GUIDE.md) — Testing details for context queries, analytics, and tool blocks.
+=======
+on going project
+>>>>>>> be189ac681d3c5beecd05b9cb31feb221eb473ec

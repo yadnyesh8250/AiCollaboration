@@ -51,6 +51,7 @@ model User {
   documentVersions     DocumentVersion[]
   documentComments     DocumentComment[]
   documentPermissions  DocumentPermission[]
+  presences            Presence[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -886,4 +887,24 @@ enum DocumentPermissionRole {
   EDITOR
   COMMENTER
   VIEWER
+}
+
+// ─────────────────────────────────────────────────────────────
+// Presence — Live user presence tracking
+// ─────────────────────────────────────────────────────────────
+model Presence {
+  id             String     @id @default(uuid())
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId    String?
+  currentPage    String?
+  currentChannel String?
+  socketId       String     @unique
+  status         UserStatus @default(ONLINE)
+  lastSeen       DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([workspaceId])
 }

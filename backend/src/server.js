@@ -16,6 +16,7 @@ import channelRoutes from "./routes/channel.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import attachmentRoutes from "./routes/attachment.routes.js";
 import aiFlatRoutes from "./routes/aiFlat.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 
 // Phase 5 imports
 import { flatTaskRouter } from "./modules/task/task.routes.js";
@@ -76,6 +77,7 @@ app.use("/api/channels", channelRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/attachments", attachmentRoutes);
 app.use("/api/ai", aiFlatRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Phase 5 Routes
 app.use("/api/tasks", flatTaskRouter);

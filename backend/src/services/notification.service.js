@@ -1,30 +1,33 @@
 import prisma from "../config/db.js";
+import { getIO } from "../socket/index.js";
 
 /**
- * Send an in-app notification to a user.
- * 
- * @param {Object} params
- * @param {string} params.recipientId - ID of the user receiving the notification
- * @param {string} [params.actorId] - ID of the user triggering the notification
- * @param {string} params.type - e.g. "INVITE_RECEIVED", "ROLE_UPDATED"
- * @param {Object} [params.payload] - Extra JSON context for rendering
+ * Creates and dispatches a notification to a specific recipient user.
+ * Writes to the database and broadcasts in real-time via Socket.io.
  */
-export const sendNotification = async ({
-  recipientId,
-  actorId = null,
-  type,
-  payload = null,
-}) => {
+export const sendNotification = async ({ recipientId, actorId, type, payload }) => {
   try {
-    await prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         recipientId,
-        actorId,
+        actorId: actorId || null,
         type,
-        payload,
+        payload: payload || {},
+        isRead: false,
       },
     });
+
+    // Broadcast to user socket room
+    const io = getIO();
+    if (io) {
+      io.to(`user:${recipientId}`).emit("notification:new", notification);
+    }
+
+    return notification;
   } catch (err) {
-    console.error("[NotificationService] Failed to create notification:", err);
+    console.error("[sendNotification] Failed to create notification:", err);
+    throw err;
   }
 };
+
+export const dispatchNotification = sendNotification;

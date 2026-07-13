@@ -4,14 +4,24 @@ import { useAuthStore } from "../stores/authStore";
 
 // Layouts
 import AuthLayout from "../components/layout/AuthLayout";
+import WorkspaceLayout from "../components/layout/WorkspaceLayout";
 
 // Lazy-loaded pages
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
 import ForgotPassword from "../pages/auth/ForgotPassword";
 import ResetPassword from "../pages/auth/ResetPassword";
+import VerifyEmail from "../pages/auth/VerifyEmail";
+import InvitationAcceptance from "../pages/auth/InvitationAcceptance";
+import OrganizationCreation from "../pages/auth/OrganizationCreation";
+import WorkspaceCreation from "../pages/auth/WorkspaceCreation";
 import Dashboard from "../pages/dashboard/Dashboard";
-import Workspace from "../pages/workspace/Workspace";
+
+// Workspace sub-pages
+import WorkspaceTasks from "../pages/workspace/WorkspaceTasks";
+import WorkspaceChat from "../pages/workspace/WorkspaceChat";
+import WorkspaceDocs from "../pages/workspace/WorkspaceDocs";
+import WorkspaceSettings from "../pages/workspace/WorkspaceSettings";
 
 // Simple Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -64,23 +74,70 @@ export default function AppRoutes() {
         />
       </Route>
 
-      {/* Protected App Routes */}
+      {/* Protected Onboarding Wizard Pages wrapped in AuthLayout */}
+      <Route element={<AuthLayout />}>
+        <Route
+          path="/verify-email"
+          element={
+            <ProtectedRoute>
+              <VerifyEmail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/invites/accept"
+          element={
+            <ProtectedRoute>
+              <InvitationAcceptance />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/create-org"
+          element={
+            <ProtectedRoute>
+              <OrganizationCreation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/create-workspace"
+          element={
+            <ProtectedRoute>
+              <WorkspaceCreation />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
+
+      {/* Protected Dashboard Route redirecting to default workspace */}
       <Route
         path="/"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <Navigate to="/workspaces/1" replace />
           </ProtectedRoute>
         }
       />
+
+      {/* Protected Workspace Layout Shell */}
       <Route
-        path="/workspaces/:workspaceId/*"
+        path="/workspaces/:workspaceId"
         element={
           <ProtectedRoute>
-            <Workspace />
+            <WorkspaceLayout />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<Navigate to="tasks" replace />} />
+        <Route path="tasks" element={<WorkspaceTasks />} />
+        <Route path="chat" element={<WorkspaceChat />} />
+        <Route path="docs" element={<WorkspaceDocs />} />
+        <Route path="settings" element={<WorkspaceSettings />} />
+        
+        {/* Wildcard to resolve channels/projects to chat */}
+        <Route path="channels/*" element={<WorkspaceChat />} />
+      </Route>
 
       {/* Fallback redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />

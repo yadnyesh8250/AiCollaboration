@@ -26,20 +26,12 @@ export const authService = {
   },
 
   async forgotPassword(email) {
-    // Mocked on frontend since backend does not support password recovery routes
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true, message: "Mock recovery link sent." });
-      }, 1000);
-    });
+    // TODO: Connect once backend supports password recovery endpoints
+    return Promise.reject(new Error("Password recovery is not supported by the backend yet."));
   },
 
   async resetPassword(token, password) {
-    // Mocked on frontend since backend does not support password recovery routes
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ success: true, message: "Mock password reset completed." });
-      }, 1000);
-    });
+    // TODO: Connect once backend supports password reset endpoints
+    return Promise.reject(new Error("Password reset is not supported by the backend yet."));
   },
 };

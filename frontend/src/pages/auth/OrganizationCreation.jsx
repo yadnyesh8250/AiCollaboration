@@ -1,9 +1,12 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as zod from "zod";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "../../services/api/client";
 import FormField from "../../components/common/FormField";
+import { Alert, AlertDescription } from "../../components/ui/alert";
 
 const orgSchema = zod.object({
   name: zod.string().min(2, "Organization name must be at least 2 characters"),
@@ -16,6 +19,8 @@ const orgSchema = zod.object({
 
 export default function OrganizationCreation() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [errorMsg, setErrorMsg] = useState("");
 
   const {
     register,
@@ -44,11 +49,16 @@ export default function OrganizationCreation() {
   }, [orgName, setValue, dirtyFields.slug]);
 
   const onSubmit = async (data) => {
+    setErrorMsg("");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      navigate(`/create-workspace?orgSlug=${data.slug}`);
+      const res = await api.post("/organizations", data);
+      if (res.data.success) {
+        queryClient.invalidateQueries({ queryKey: ["organizations"] });
+        navigate(`/create-workspace?orgId=${res.data.organization.id}&orgSlug=${res.data.organization.slug}`);
+      }
     } catch (err) {
       console.error(err);
+      setErrorMsg(err.response?.data?.message || "Failed to create organization.");
     }
   };
 
@@ -66,6 +76,12 @@ export default function OrganizationCreation() {
           Set up your company's workspace entity to invite your team
         </p>
       </div>
+
+      {errorMsg && (
+        <Alert variant="destructive">
+          <AlertDescription>{errorMsg}</AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Name Field */}

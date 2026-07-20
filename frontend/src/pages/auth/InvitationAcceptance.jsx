@@ -32,7 +32,7 @@ export default function InvitationAcceptance() {
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      navigate("/workspaces/1"); 
+      navigate("/"); 
     } catch (err) {
       setErrorMsg("Failed to join organization.");
     } finally {

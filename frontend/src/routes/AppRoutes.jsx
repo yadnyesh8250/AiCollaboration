@@ -1,6 +1,8 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "../stores/authStore";
+import { api } from "../services/api/client";
 
 // Layouts
 import AuthLayout from "../components/layout/AuthLayout";
@@ -33,6 +35,40 @@ function ProtectedRoute({ children }) {
 function PublicRoute({ children }) {
   const { isAuthenticated } = useAuthStore();
   return !isAuthenticated ? children : <Navigate to="/" replace />;
+}
+
+// Dynamic workspace redirect component
+function WorkspaceRedirect() {
+  const { data: orgs = [], isLoading: loadingOrgs } = useQuery({
+    queryKey: ["organizations"],
+    queryFn: () => api.get("/organizations").then((res) => res.data.organizations),
+  });
+
+  const activeOrgId = orgs[0]?.id;
+
+  const { data: workspaces = [], isLoading: loadingWorkspaces } = useQuery({
+    queryKey: ["workspaces", activeOrgId],
+    queryFn: () => api.get(`/organizations/${activeOrgId}/workspaces`).then((res) => res.data.workspaces),
+    enabled: !!activeOrgId,
+  });
+
+  if (loadingOrgs || (activeOrgId && loadingWorkspaces)) {
+    return (
+      <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center">
+        <div className="text-zinc-500 text-xs font-semibold animate-pulse">Loading active workspace...</div>
+      </div>
+    );
+  }
+
+  if (orgs.length === 0) {
+    return <Navigate to="/create-org" replace />;
+  }
+
+  if (workspaces.length === 0) {
+    return <Navigate to={`/create-workspace?orgId=${activeOrgId}&orgSlug=${orgs[0]?.slug}`} replace />;
+  }
+
+  return <Navigate to={`/workspaces/${workspaces[0].id}`} replace />;
 }
 
 export default function AppRoutes() {
@@ -115,7 +151,7 @@ export default function AppRoutes() {
         path="/"
         element={
           <ProtectedRoute>
-            <Navigate to="/workspaces/1" replace />
+            <WorkspaceRedirect />
           </ProtectedRoute>
         }
       />

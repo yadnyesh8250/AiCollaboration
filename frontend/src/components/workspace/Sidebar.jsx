@@ -72,7 +72,7 @@ export default function Sidebar() {
   }, [workspaceId]);
 
   const activeMembersList = Object.values(presenceMap).map((presence) => {
-    const member = members.find((m) => m.userId === presence.userId || m.user?.id === presence.userId);
+    const member = Array.isArray(members) ? members.find((m) => m.userId === presence.userId || m.user?.id === presence.userId) : null;
     return {
       userId: presence.userId,
       name: member?.user?.username || presence.userId.substring(0, 8),

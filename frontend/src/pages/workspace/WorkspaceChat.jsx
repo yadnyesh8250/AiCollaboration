@@ -11,7 +11,7 @@ export default function WorkspaceChat() {
   const messagesEndRef = useRef(null);
 
   // Fetch channels in workspace to match slug
-  const { data: channels = [] } = useQuery({
+  const { data: channels = [], isLoading: loadingChannels } = useQuery({
     queryKey: ["channels", workspaceId],
     queryFn: () => api.get(`/workspaces/${workspaceId}/channels`).then((res) => res.data.channels),
     enabled: !!workspaceId,
@@ -21,7 +21,7 @@ export default function WorkspaceChat() {
   const channelId = activeChannel?.id;
 
   // Fetch channel messages list
-  const { data: messages = [], refetch: refetchMessages } = useQuery({
+  const { data: messages = [], isLoading: loadingMessages, refetch: refetchMessages } = useQuery({
     queryKey: ["messages", channelId],
     queryFn: () => api.get(`/channels/${channelId}/messages`).then((res) => res.data.messages),
     enabled: !!channelId,
@@ -126,9 +126,9 @@ export default function WorkspaceChat() {
         <div>
           <h2 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-1.5">
             <span className="text-zinc-500 font-medium">#</span>
-            development
+            {activeChannel?.name || "chat"}
           </h2>
-          <p className="text-[10px] text-zinc-500 font-medium mt-0.5">Core developer updates and AI-collaborations</p>
+          <p className="text-[10px] text-zinc-500 font-medium mt-0.5">{activeChannel?.description || "Workspace discussion channel"}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex -space-x-1.5 overflow-hidden">
@@ -140,141 +140,161 @@ export default function WorkspaceChat() {
 
       {/* Message Timeline */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
-        {messages.map((msg) => {
-          const payload = msg.payload ? (typeof msg.payload === "string" ? JSON.parse(msg.payload) : msg.payload) : {};
-          const isExpanded = !!expandedCards[msg.id];
-          const isAI = msg.messageType === "AI";
-
-          return (
-            <div key={msg.id} className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-              {isAI ? (
-                /* Custom Timeline Card Block (AI Collaboration Layer) */
-                <div className="flex items-start gap-3 pl-11">
-                  <div className="flex-1 bg-zinc-900/10 border border-zinc-800/80 border-l-2 border-l-primary rounded-xl p-4 space-y-4 relative overflow-hidden shadow-lg">
-                    {/* Purple aura */}
-                    <div className="absolute inset-0 bg-radial-[circle_at_top_left,var(--color-primary)/0.02,transparent_50%] pointer-events-none" />
-
-                    {/* Top Bar inside AI Card */}
-                    <div className="flex items-center justify-between relative z-10">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm shrink-0">{getCardIcon(payload.cardType)}</span>
-                        <span className="text-xs font-bold text-zinc-200">{payload.title || "AI Response"}</span>
-                      </div>
-                      {payload.status && (
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${payload.statusColor || "bg-primary/10 text-primary border-primary/20"}`}>
-                          {payload.status}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Context Chips */}
-                    {payload.chips && payload.chips.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 relative z-10">
-                        {payload.chips.map((chip, i) => (
-                          <span
-                            key={i}
-                            className="flex items-center gap-1 text-[9px] font-bold bg-zinc-900 text-zinc-400 border border-zinc-800 px-2 py-0.5 rounded-full select-none"
-                          >
-                            <span>{chip.icon}</span>
-                            <span>{chip.label}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Primary text */}
-                    <div className="text-xs text-zinc-300 leading-relaxed font-medium relative z-10">
-                      {msg.content}
-                    </div>
-
-                    {/* Collapsible details toggle */}
-                    {payload.details && payload.details.length > 0 && (
-                      <div className="border border-zinc-800/60 rounded-lg overflow-hidden bg-zinc-950/40 relative z-10">
-                        <button
-                          onClick={() => toggleCardExpansion(msg.id)}
-                          className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 hover:bg-zinc-900/10 transition-all cursor-pointer"
-                        >
-                          <span>Details ({payload.details.length} items found)</span>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="2.5"
-                            stroke="currentColor"
-                            className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? "transform rotate-180" : ""}`}
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                          </svg>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="px-3 pb-3 pt-1 border-t border-zinc-900/60 space-y-1.5">
-                            {payload.details.map((detail, idx) => (
-                              <div key={idx} className="flex items-center gap-2 text-xs text-zinc-400">
-                                <span className="text-emerald-500">✓</span>
-                                <span>{detail}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Suggested actions */}
-                    {payload.actions && payload.actions.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-1.5 relative z-10">
-                        {payload.actions.map((act) => (
-                          <button
-                            key={act}
-                            onClick={() => handleActionClick(act)}
-                            className="text-[10px] font-bold text-primary bg-primary/5 hover:bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                          >
-                            {act}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                /* User Message Block */
-                <div className="flex items-start gap-3">
-                  <div className={`h-8 w-8 rounded-full border flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(msg.sender?.username)}`}>
-                    {getInitials(msg.sender?.username || "System")}
-                  </div>
-                  <div className="space-y-1 overflow-hidden">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xs font-bold text-foreground">{msg.sender?.username || "System"}</span>
-                      <span className="text-[9px] text-zinc-500 font-medium">
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-300 leading-relaxed truncate-none">
-                      {msg.content}
-                    </p>
-                  </div>
-                </div>
-              )}
+        {loadingChannels || (channelId && loadingMessages) ? (
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-20 animate-in fade-in duration-200">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span className="text-xs text-zinc-500 font-semibold animate-pulse">Loading discussion feed...</span>
+          </div>
+        ) : !channelId ? (
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-20 animate-in fade-in duration-200">
+            <div className="h-12 w-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
             </div>
-          );
-        })}
-
-        {/* AI Typing Presence Indicator (Improvement 7) */}
-        {isAiTyping && (
-          <div className="flex items-start gap-3 pl-11 animate-in fade-in duration-200">
-            <div className="flex flex-col space-y-2">
-              <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                <span className="h-4.5 w-4.5 rounded-full bg-primary/10 text-[8px] flex items-center justify-center font-black border border-primary/20 animate-pulse">🤖</span>
-                <span>{aiTypingText}</span>
-              </div>
-              <div className="flex items-center gap-1.5 pl-1.5">
-                <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
+            <div>
+              <h4 className="text-sm font-semibold text-zinc-200">No Channels Found</h4>
+              <p className="text-xs text-zinc-500 mt-1 max-w-[280px]">
+                Create a channel in this workspace to start collaborating and sharing messages.
+              </p>
             </div>
           </div>
+        ) : !Array.isArray(messages) || messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-20 animate-in fade-in duration-200">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-zinc-200">Welcome to #{activeChannel?.name || "channel"}!</h4>
+              <p className="text-xs text-zinc-500 mt-1 max-w-[280px]">
+                This is the beginning of the #{activeChannel?.name || "channel"} channel. Send a message to start the conversation.
+              </p>
+            </div>
+          </div>
+        ) : (
+          messages.map((msg) => {
+            const payload = msg.payload ? (typeof msg.payload === "string" ? JSON.parse(msg.payload) : msg.payload) : {};
+            const isExpanded = !!expandedCards[msg.id];
+            const isAI = msg.messageType === "AI";
+
+            return (
+              <div key={msg.id} className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+                {isAI ? (
+                  /* Custom Timeline Card Block (AI Collaboration Layer) */
+                  <div className="flex items-start gap-3 pl-11">
+                    <div className="flex-1 bg-zinc-900/10 border border-zinc-800/80 border-l-2 border-l-primary rounded-xl p-4 space-y-4 relative overflow-hidden shadow-lg">
+                      {/* Purple aura */}
+                      <div className="absolute inset-0 bg-radial-[circle_at_top_left,var(--color-primary)/0.02,transparent_50%] pointer-events-none" />
+
+                      {/* Top Bar inside AI Card */}
+                      <div className="flex items-center justify-between relative z-10">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm shrink-0">{getCardIcon(payload.cardType)}</span>
+                          <span className="text-xs font-bold text-zinc-200">{payload.title || "AI Response"}</span>
+                        </div>
+                        {payload.status && (
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${payload.statusColor || "bg-primary/10 text-primary border-primary/20"}`}>
+                            {payload.status}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Context Chips */}
+                      {payload.chips && payload.chips.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 relative z-10">
+                          {payload.chips.map((chip, i) => (
+                            <span
+                              key={i}
+                              className="flex items-center gap-1 text-[9px] font-bold bg-zinc-900 text-zinc-400 border border-zinc-800 px-2 py-0.5 rounded-full select-none"
+                            >
+                              <span>{chip.icon}</span>
+                              <span>{chip.label}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Primary text */}
+                      <div className="text-xs text-zinc-300 leading-relaxed font-medium relative z-10">
+                        {msg.content}
+                      </div>
+
+                      {/* Collapsible details toggle */}
+                      {payload.details && payload.details.length > 0 && (
+                        <div className="border border-zinc-800/60 rounded-lg overflow-hidden bg-zinc-950/40 relative z-10">
+                          <button
+                            onClick={() => toggleCardExpansion(msg.id)}
+                            className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 hover:bg-zinc-900/10 transition-all cursor-pointer"
+                          >
+                            <span>Details ({payload.details.length} items found)</span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth="2.5"
+                              stroke="currentColor"
+                              className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? "transform rotate-180" : ""}`}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                            </svg>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="px-3 pb-3 pt-1 border-t border-zinc-900/60 space-y-1.5">
+                              {payload.details.map((detail, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs text-zinc-400">
+                                  <span className="text-emerald-500">✓</span>
+                                  <span>{detail}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Suggested actions */}
+                      {payload.actions && payload.actions.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1.5 relative z-10">
+                          {payload.actions.map((act) => (
+                            <button
+                              key={act}
+                              onClick={() => handleActionClick(act)}
+                              className="text-[10px] font-bold text-primary bg-primary/5 hover:bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                            >
+                              {act}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* User Message Block */
+                  <div className="flex items-start gap-3">
+                    <div className={`h-8 w-8 rounded-full border flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(msg.sender?.username)}`}>
+                      {getInitials(msg.sender?.username || "System")}
+                    </div>
+                    <div className="space-y-1 overflow-hidden">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-bold text-foreground">{msg.sender?.username || "System"}</span>
+                        <span className="text-[9px] text-zinc-500 font-medium">
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-300 leading-relaxed truncate-none">
+                        {msg.content}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
+
+
 
         <div ref={messagesEndRef} />
       </div>

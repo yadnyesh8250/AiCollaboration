@@ -38,6 +38,18 @@ export const createWorkspace = async (req, res) => {
       },
     });
 
+    // Auto-create a default general channel
+    await prisma.channel.create({
+      data: {
+        workspaceId: workspace.id,
+        name: "general",
+        slug: "general",
+        description: "General workspace discussion",
+        type: "PUBLIC",
+        createdBy: req.user.id,
+      },
+    });
+
     await logAction({
       actorId: req.user.id,
       organizationId: orgId,

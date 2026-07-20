@@ -102,7 +102,7 @@ export const listMessages = async (req, res) => {
     const query = {
       where: { channelId, parentMessageId: null }, // Only main feed, no threads
       take: parsedLimit + 1, // take 1 extra to see if there's a next page
-      orderBy: { createdAt: 'desc' }, // newest first
+      orderBy: { createdAt: 'asc' }, // oldest first
       include: {
         sender: { select: { id: true, username: true, avatarUrl: true } },
         reactions: true,

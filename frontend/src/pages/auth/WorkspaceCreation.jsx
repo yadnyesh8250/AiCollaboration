@@ -3,7 +3,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as zod from "zod";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "../../services/api/client";
 import FormField from "../../components/common/FormField";
+import { Alert, AlertDescription } from "../../components/ui/alert";
 
 const workspaceSchema = zod.object({
   name: zod.string().min(2, "Workspace name must be at least 2 characters"),
@@ -12,10 +15,13 @@ const workspaceSchema = zod.object({
 export default function WorkspaceCreation() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const orgId = searchParams.get("orgId");
   const orgSlug = searchParams.get("orgSlug") || "org";
 
   const [setupStep, setSetupStep] = useState(0); 
   const [progressText, setProgressText] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const {
     register,
@@ -28,25 +34,37 @@ export default function WorkspaceCreation() {
 
   const onSubmit = async (data) => {
     setSetupStep(1);
+    setErrorMsg("");
     
     try {
-      setProgressText("Provisioning database channels...");
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      setProgressText("Provisioning workspace registry...");
       
-      setProgressText("Initializing AI context graph...");
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      setProgressText("Deploying collaboration channels...");
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
-      setSetupStep(2);
-      setProgressText("Workspace ready! Redirecting...");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const workspaceSlug = data.name.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
       
-      navigate("/workspaces/1");
+      const res = await api.post(`/organizations/${orgId}/workspaces`, {
+        name: data.name,
+        slug: workspaceSlug,
+        description: "Auto-provisioned workspace.",
+      });
+
+      if (res.data.success) {
+        queryClient.invalidateQueries({ queryKey: ["workspaces", orgId] });
+        setProgressText("Initializing AI context graph...");
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        setProgressText("Deploying collaboration channels...");
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        setSetupStep(2);
+        setProgressText("Workspace ready! Redirecting...");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        
+        navigate("/");
+      }
     } catch (err) {
       console.error(err);
       setSetupStep(0);
+      setErrorMsg(err.response?.data?.message || "Failed to create workspace.");
     }
   };
 
@@ -84,6 +102,12 @@ export default function WorkspaceCreation() {
           Define your first workspace in organization "{orgSlug}"
         </p>
       </div>
+
+      {errorMsg && (
+        <Alert variant="destructive">
+          <AlertDescription>{errorMsg}</AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Workspace Name */}

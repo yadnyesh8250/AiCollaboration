@@ -1,12 +1,29 @@
 import React, { useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../services/api/client";
 import { useUIStore } from "../../stores/uiStore";
 import Sidebar from "../workspace/Sidebar";
 import Topbar from "../workspace/Topbar";
 import RightDrawer from "../workspace/RightDrawer";
 
 export default function WorkspaceLayout() {
+  const { workspaceId } = useParams();
+  const navigate = useNavigate();
   const { isCommandPaletteOpen, setCommandPalette, isSidebarCollapsed, setSidebarCollapsed } = useUIStore();
+
+  const { error } = useQuery({
+    queryKey: ["workspace", workspaceId],
+    queryFn: () => api.get(`/workspaces/${workspaceId}`).then((res) => res.data.workspace),
+    enabled: !!workspaceId,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (error && error.response?.status === 403) {
+      navigate("/", { replace: true });
+    }
+  }, [error, navigate]);
 
   // Handle auto-collapsing sidebar on smaller viewports
   useEffect(() => {

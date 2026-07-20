@@ -12,7 +12,7 @@ export default function WorkspaceTasks() {
     enabled: !!workspaceId,
   });
 
-  const getTasksByStatus = (status) => tasks.filter((t) => t.status === status);
+  const getTasksByStatus = (status) => (Array.isArray(tasks) ? tasks.filter((t) => t.status === status) : []);
 
   const columns = [
     {

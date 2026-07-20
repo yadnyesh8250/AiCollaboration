@@ -153,7 +153,7 @@ export default function WorkspaceDocs() {
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-3 min-h-0 pr-1">
-        {documents.map((doc) => (
+        {Array.isArray(documents) && documents.map((doc) => (
           <div
             key={doc.id}
             onClick={() => setSelectedDoc(doc)}

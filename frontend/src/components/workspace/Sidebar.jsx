@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../../stores/authStore";
 import { useUIStore } from "../../stores/uiStore";
 import { api } from "../../services/api/client";
@@ -12,6 +12,14 @@ export default function Sidebar() {
   const { user } = useAuthStore();
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Channel Creation States
+  const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
+  const [newChannelName, setNewChannelName] = useState("");
+  const [newChannelSlug, setNewChannelSlug] = useState("");
+  const [newChannelDesc, setNewChannelDesc] = useState("");
+  const [newChannelType, setNewChannelType] = useState("PUBLIC");
 
   const { data: orgs = [] } = useQuery({
     queryKey: ["organizations"],
@@ -23,6 +31,39 @@ export default function Sidebar() {
     queryFn: () => api.get(`/workspaces/${workspaceId}/channels`).then((res) => res.data.channels),
     enabled: !!workspaceId,
   });
+
+  const createChannelMutation = useMutation({
+    mutationFn: (data) => api.post(`/workspaces/${workspaceId}/channels`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      setIsChannelModalOpen(false);
+      setNewChannelName("");
+      setNewChannelSlug("");
+      setNewChannelDesc("");
+      setNewChannelType("PUBLIC");
+    },
+  });
+
+  const handleChannelNameChange = (e) => {
+    const val = e.target.value;
+    setNewChannelName(val);
+    const generatedSlug = val
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+    setNewChannelSlug(generatedSlug);
+  };
+
+  const handleCreateChannel = (e) => {
+    e.preventDefault();
+    if (!newChannelName.trim() || !newChannelSlug.trim()) return;
+    createChannelMutation.mutate({
+      name: newChannelName.trim(),
+      slug: newChannelSlug.trim(),
+      description: newChannelDesc.trim() || null,
+      type: newChannelType,
+    });
+  };
 
   const { data: dashboardData } = useQuery({
     queryKey: ["workspaceDashboard", workspaceId],
@@ -134,11 +175,12 @@ export default function Sidebar() {
   const currentOrg = orgs[0] || { id: "1", name: "A-Collab Org", slug: "acollab-org" };
 
   return (
-    <div
-      className={`h-screen bg-zinc-950 border-r border-zinc-900/60 flex flex-col justify-between transition-all duration-300 fixed lg:static inset-y-0 left-0 z-40 ${
-        isSidebarCollapsed ? "-translate-x-full lg:translate-x-0 lg:w-16" : "translate-x-0 lg:w-60"
-      }`}
-    >
+    <>
+      <div
+        className={`h-screen bg-zinc-950 border-r border-zinc-900/60 flex flex-col justify-between transition-all duration-300 fixed lg:static inset-y-0 left-0 z-40 ${
+          isSidebarCollapsed ? "-translate-x-full lg:translate-x-0 lg:w-16" : "translate-x-0 lg:w-60"
+        }`}
+      >
       {/* Top Header & Switcher */}
       <div className="space-y-4 pt-4 px-3 relative overflow-y-auto no-scrollbar flex-1">
         <div className="flex items-center justify-between">
@@ -278,7 +320,10 @@ export default function Sidebar() {
           <div className="pt-2 space-y-2">
             <div className="flex items-center justify-between px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
               <span>Projects</span>
-              <button className="hover:text-foreground cursor-pointer">
+              <button
+                onClick={() => setIsChannelModalOpen(true)}
+                className="hover:text-foreground cursor-pointer"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
@@ -352,5 +397,96 @@ export default function Sidebar() {
         </div>
       </div>
     </div>
+
+      {/* Create Channel Modal Overlay */}
+      {isChannelModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-250">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
+              <h3 className="text-base font-bold text-foreground">Create Channel</h3>
+              <button
+                onClick={() => setIsChannelModalOpen(false)}
+                className="text-zinc-500 hover:text-foreground cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateChannel} className="space-y-4">
+              {/* Name */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Channel Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. general"
+                  value={newChannelName}
+                  onChange={handleChannelNameChange}
+                  className="w-full h-9 rounded-lg border border-zinc-850 bg-zinc-950 px-3 text-xs text-foreground placeholder:text-zinc-500/60 outline-none focus:border-primary transition-all"
+                />
+              </div>
+
+              {/* Slug */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Slug</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. general-channel"
+                  value={newChannelSlug}
+                  onChange={(e) => setNewChannelSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-"))}
+                  className="w-full h-9 rounded-lg border border-zinc-850 bg-zinc-950 px-3 text-xs text-foreground placeholder:text-zinc-500/60 outline-none focus:border-primary transition-all"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Description (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="What is this channel about..."
+                  value={newChannelDesc}
+                  onChange={(e) => setNewChannelDesc(e.target.value)}
+                  className="w-full h-9 rounded-lg border border-zinc-850 bg-zinc-950 px-3 text-xs text-foreground placeholder:text-zinc-500/60 outline-none focus:border-primary transition-all"
+                />
+              </div>
+
+              {/* Type */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Type</label>
+                <select
+                  value={newChannelType}
+                  onChange={(e) => setNewChannelType(e.target.value)}
+                  className="w-full h-9 rounded-lg border border-zinc-850 bg-zinc-950 px-2 text-xs text-foreground outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="PUBLIC">Public (everyone in workspace can view)</option>
+                  <option value="PRIVATE">Private (invite-only)</option>
+                </select>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-900">
+                <button
+                  type="button"
+                  onClick={() => setIsChannelModalOpen(false)}
+                  className="h-9 px-4 rounded-lg border border-zinc-800 hover:bg-zinc-900/40 text-xs font-semibold text-zinc-400 hover:text-foreground cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createChannelMutation.isPending}
+                  className="h-9 px-4 rounded-lg bg-primary hover:scale-[1.01] active:scale-[0.99] text-xs font-semibold text-primary-foreground shadow-lg shadow-primary/20 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  {createChannelMutation.isPending ? "Creating..." : "Create Channel"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

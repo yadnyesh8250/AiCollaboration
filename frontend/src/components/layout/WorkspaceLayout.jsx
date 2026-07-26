@@ -68,42 +68,42 @@ export default function WorkspaceLayout() {
       {isCommandPaletteOpen && (
         <div
           onClick={() => setCommandPalette(false)}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-24 z-50 animate-in fade-in duration-150"
+          className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-start justify-center pt-28 z-50 animate-in fade-in duration-200"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            className="w-full max-w-lg rounded-xl border border-zinc-900 bg-zinc-950/95 shadow-2xl shadow-black/80 overflow-hidden animate-in zoom-in-95 duration-150"
           >
             {/* Input Header */}
-            <div className="flex items-center gap-3 px-4 border-b border-zinc-900/60 h-12">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4 text-zinc-500">
+            <div className="flex items-center gap-3 px-4 border-b border-zinc-900/60 h-11">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5 text-zinc-500">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
               </svg>
               <input
                 type="text"
                 autoFocus
-                placeholder="Search commands or type..."
-                className="flex-1 bg-transparent border-0 text-sm placeholder:text-zinc-500/60 outline-none text-foreground"
+                placeholder="Search commands..."
+                className="flex-1 bg-transparent border-0 text-xs placeholder:text-zinc-650 outline-none text-zinc-200"
               />
-              <span className="text-[10px] text-zinc-500 font-semibold border border-zinc-800 px-1.5 py-0.5 rounded">ESC</span>
+              <span className="text-[9px] text-zinc-500 font-bold border border-zinc-900 bg-zinc-950 px-1.5 py-0.5 rounded select-none">ESC</span>
             </div>
 
             {/* List options */}
-            <div className="p-2 space-y-1">
+            <div className="p-2 max-h-[280px] overflow-y-auto space-y-1.5 no-scrollbar">
+              <div className="px-2.5 pt-1 pb-0.5 text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Navigation</div>
               {[
-                { name: "Create New Task", shortcut: "⌘N" },
-                { name: "Go to Chat", shortcut: "⌘C" },
-                { name: "Switch Workspace", shortcut: "⌘W" },
-                { name: "Open AI Copilot", shortcut: "⌘A" },
-                { name: "Search Documents", shortcut: "⌘D" },
+                { name: "Go to Tasks board", shortcut: "G T" },
+                { name: "Go to Chat / Channels", shortcut: "G C" },
+                { name: "Go to Documents", shortcut: "G D" },
+                { name: "Go to Settings", shortcut: "G S" },
               ].map((cmd) => (
                 <button
                   key={cmd.name}
                   onClick={() => setCommandPalette(false)}
-                  className="flex items-center justify-between w-full px-3 py-2 text-xs rounded-lg hover:bg-zinc-900 text-zinc-300 hover:text-white transition-colors cursor-pointer text-left"
+                  className="flex items-center justify-between w-full px-3 py-1.5 text-xs rounded-lg hover:bg-zinc-900/50 text-zinc-400 hover:text-white transition-all cursor-pointer text-left"
                 >
-                  <span>{cmd.name}</span>
-                  <span className="text-[10px] text-zinc-500 font-mono">{cmd.shortcut}</span>
+                  <span className="font-medium">{cmd.name}</span>
+                  <span className="text-[9px] text-zinc-650 font-mono font-bold bg-zinc-950 border border-zinc-900/80 px-1 py-0.5 rounded">{cmd.shortcut}</span>
                 </button>
               ))}
             </div>

@@ -1,0 +1,137 @@
+================================================================================
+                     A-COLLAB FRONTEND IMPLEMENTATION GUIDE
+================================================================================
+
+This document details the architecture, user flows, implemented features, user roles,
+and backend integrations of the A-Collab frontend application.
+
+--------------------------------------------------------------------------------
+1. TECH STACK & SYSTEM ARCHITECTURE
+--------------------------------------------------------------------------------
+- Core Framework: React 18 with Vite build tool.
+- Styling: Vanilla CSS with custom utility frameworks and tokens.
+- Client State & Caching: TanStack React Query v5 for REST API queries, caching,
+  and mutation refetching.
+- Global Store: Zustand stores (e.g. authStore, uiStore) for light-weight local state.
+- Real-time layer: Socket.io-client connecting to the API gateway server to handle
+  collaboration rooms, message events, and presence synchronization.
+
+--------------------------------------------------------------------------------
+2. USER AUTHENTICATION & SESSION FLOW
+--------------------------------------------------------------------------------
+- Register Page (/register):
+  * Inputs: Username, Email, Password.
+  * Flow: Validates inputs (e.g. password strength, username availability). Calls
+    `POST /api/auth/register` to save user credentials and logs them in.
+- Login Page (/login):
+  * Inputs: Email/Username, Password.
+  * Flow: Submits data to `POST /api/auth/login`. On success, the JWT access token
+    is saved to localStorage and the user is authenticated in the global Auth Store.
+- Logout Flow (/logout):
+  * Flow: Clears local cookies/token storage, resets the Zustand auth state, and
+    redirects the user back to the landing login portal.
+
+--------------------------------------------------------------------------------
+3. ORGANIZATIONAL ONBOARDING & ROUTE INTERCEPTORS
+--------------------------------------------------------------------------------
+- Workspace Auto-Redirect (mounted at '/'):
+  * When a user loads the root route, `WorkspaceRedirect` queries the backend to
+    see if the user has any existing organizations or workspaces.
+  * Case A (New User): Redirects to `/create-organization`.
+  * Case B (Has Org, No Workspace): Redirects to `/create-workspace`.
+  * Case C (Onboarded): Auto-navigates to `/workspaces/:workspaceId/inbox`.
+- Step 1: Create Organization (/create-organization):
+  * Inputs: Organization Name, Org Slug, Description.
+  * Flow: Posts to `POST /api/organizations`. Invalidates caches and redirects
+    user to workspace creation with org query parameters.
+- Step 2: Create Workspace (/create-workspace):
+  * Inputs: Workspace Name, Slug, Visibility.
+  * Flow: Posts to `POST /api/organizations/:orgId/workspaces`. The backend
+    automatically provisions a default public "#general" channel under this workspace.
+    Redirection is then made back to "/" to load the dashboard.
+- Workspace Layout Validation Interceptor:
+  * In [WorkspaceLayout.jsx], a router interceptor checks if the active workspace ID
+    is valid. If a user navigates to a forbidden/missing workspace ID, it catches the
+    403 response and redirects them back to '/' to dynamically load a valid workspace.
+
+--------------------------------------------------------------------------------
+4. SIDEBAR NAVIGATION & PRESENCE MAP
+--------------------------------------------------------------------------------
+- Organization Dropdown:
+  * Fetches and displays a dropdown list of all organizations the user belongs to.
+- Primary Navigation Tabs:
+  * Redirect links to Inbox, Chat, Tasks, Documents, and Settings views.
+- Project/Channels List:
+  * Lists public and private channels in the workspace.
+  * "+" Button (Create Channel): Clicking this button opens a modal to create a
+    new channel (Name, Slug, Description, Type). Generates a slug automatically as
+    the user types the channel name. Calls `POST /api/workspaces/:workspaceId/channels`.
+- Live Presence Map Widget:
+  * Connects to a websocket workspace room. Emits the page/channel name as the user
+    navigates the app.
+  * Listens to websocket events ("presence:update", "user:join", "user:leave") to
+    display what page or channel each online team member is currently viewing.
+
+--------------------------------------------------------------------------------
+5. CHAT FEED & MESSAGE CHRONOLOGY
+--------------------------------------------------------------------------------
+- Timeline Loading:
+  * Loads channel messages from `GET /api/channels/:channelId/messages`.
+  * Chronology: Order is set to Ascending ('asc'), loading oldest messages first,
+    flowing down to the newest messages at the bottom.
+- Socket integration:
+  * On mount, calls `socket.emit("joinChannel", channelId)`.
+  * Listens to socket "receiveMessage" broadcasts to append new messages in real-time.
+  * On unmount, calls `socket.emit("leaveChannel", channelId)`.
+- Suggested AI Actions:
+  * Renders suggested prompt cards (e.g. Code Review, Sprint Scheduler, Meeting) which
+    let users interact with AI agents.
+- Header:
+  * Renders active channel name and description dynamically from selected channel slug.
+
+--------------------------------------------------------------------------------
+6. TASKS KANBAN BOARD (WORKSPACE TASKS)
+--------------------------------------------------------------------------------
+- Kanban Canvas:
+  * Organizes tasks into columns: "To Do", "In Progress", "In Review", "Done".
+- Add Task:
+  * Click "+ Add Task" to open the creation modal.
+  * Inputs: Title, Description, Type, Priority, Status, Assignee, Due Date, Est Hours.
+  * Calls `POST /api/workspaces/:workspaceId/tasks`.
+- Edit / Update Task:
+  * Clicking any task card loads all fields into the modal in Edit Mode.
+  * Calls `PATCH /api/tasks/:taskId` on submission.
+- Delete Task:
+  * A red "Delete Task" button is available in Edit Mode. Calls `DELETE /api/tasks/:taskId`.
+- Task Threaded Comments:
+  * Loads comments for the active task in the editor view (`GET /api/tasks/:taskId/comments`).
+  * Features a comment posting field. Pressing `Enter` or clicking "Post" sends the
+    comment to `POST /api/tasks/:taskId/comments` and updates the thread.
+
+--------------------------------------------------------------------------------
+7. WORKSPACE DOCUMENTS & BLOCK EDITOR
+--------------------------------------------------------------------------------
+- Listing:
+  * Shows list of briefs/docs fetched from `GET /api/workspaces/:workspaceId/documents`.
+- Create / Delete Document:
+  * "Create Document" modal lets users specify document title and visibility.
+  * "Delete" button inside document header removes the document (`DELETE /api/documents/:id`).
+- Interactive Block Editor:
+  * Renders document content as a list of modular blocks (Heading, Paragraph, Code,
+    Quote, Checklist).
+  * Adds custom action controls to each block card:
+    * Move Up / Move Down: Instantly swaps block positions inside client editor state.
+    * Delete: Removes a block from the document canvas.
+    * Content text inputs/areas to edit block contents.
+  * Save Changes: Click "Save Blocks" to post the entire modified blocks array in
+    bulk to `PUT /api/documents/:id/blocks`.
+
+--------------------------------------------------------------------------------
+8. WORKSPACE SETTINGS
+--------------------------------------------------------------------------------
+- Workspace Configuration Form:
+  * Fetches name, description, and slug parameters of the current workspace.
+  * Supports updating Name and Description fields. On submit, calls `PUT /api/workspaces/:workspaceId`
+    to persist changes, invalidating queries to update names in the Sidebar immediately.
+
+================================================================================

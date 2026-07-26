@@ -28,6 +28,7 @@ export default function WorkspaceSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspace", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      alert("Settings saved successfully!");
     },
   });
 
@@ -49,45 +50,45 @@ export default function WorkspaceSettings() {
   };
 
   return (
-    <div className="p-6 space-y-6 h-full flex flex-col">
+    <div className="p-6 space-y-6 h-full flex flex-col selection:bg-primary/20 selection:text-white">
       <div className="shrink-0">
-        <h2 className="text-xl font-bold tracking-tight text-foreground">Workspace Settings</h2>
-        <p className="text-xs text-zinc-500 mt-0.5">Manage details and configure workspace parameters</p>
+        <h2 className="text-lg font-bold tracking-tight text-white select-none">Workspace Settings</h2>
+        <p className="text-[11px] text-zinc-550 font-medium select-none">Configure general parameters and workspace information</p>
       </div>
 
-      <form onSubmit={handleSave} className="flex-1 overflow-y-auto space-y-4 max-w-xl min-h-0 pr-1">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-5 space-y-4">
-          <h4 className="text-sm font-semibold text-zinc-300">General Information</h4>
+      <form onSubmit={handleSave} className="flex-1 overflow-y-auto space-y-5 max-w-lg min-h-0 pr-1 no-scrollbar">
+        <div className="rounded-xl border border-zinc-950 bg-[#050505] p-5 space-y-4">
+          <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest select-none">General Info</h4>
           
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block">Workspace Name</label>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block select-none">Workspace Name</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
+                className="h-8.5 w-full rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 text-xs text-foreground outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block">Workspace Description</label>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block select-none">Workspace Description</label>
               <textarea
                 placeholder="Workspace description..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full min-h-[80px] rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/40 resize-none"
+                className="w-full min-h-[70px] rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 py-2 text-xs text-foreground outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all resize-none"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block">Workspace Slug</label>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block select-none">Workspace Slug</label>
               <input
                 type="text"
                 value={workspace.slug || ""}
                 disabled
-                className="h-10 w-full rounded-lg border border-zinc-850 bg-zinc-900/30 px-3 text-sm text-zinc-500 font-mono"
+                className="h-8.5 w-full rounded-lg border border-zinc-950 bg-zinc-950/20 px-3 text-xs text-zinc-600 font-mono select-none"
               />
             </div>
           </div>
@@ -97,13 +98,10 @@ export default function WorkspaceSettings() {
           <button
             type="submit"
             disabled={updateWorkspaceMutation.isPending}
-            className="h-10 px-4 rounded-lg bg-primary text-xs font-semibold text-primary-foreground hover:scale-[1.01] active:scale-[0.99] disabled:opacity-55 transition-all cursor-pointer"
+            className="h-8 px-4 rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer"
           >
             {updateWorkspaceMutation.isPending ? "Saving..." : "Save Changes"}
           </button>
-          {updateWorkspaceMutation.isSuccess && (
-            <span className="text-xs text-emerald-500 font-medium">Changes saved successfully!</span>
-          )}
         </div>
       </form>
     </div>

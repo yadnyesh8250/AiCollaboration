@@ -64,16 +64,15 @@ export default function OrganizationCreation() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      <div className="flex flex-col items-center space-y-3 text-center">
-        <div className="flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900/60 px-3 py-1 text-[11px] font-medium text-zinc-400">
-          <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+      <div className="flex flex-col items-center space-y-2 text-center select-none">
+        <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-widest bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-900">
           Step 1: Organization Setup
         </div>
-        <h3 className="text-xl font-bold tracking-tight text-foreground">
+        <h3 className="text-xl font-bold tracking-tight text-white pt-1">
           Create Organization
         </h3>
-        <p className="text-xs text-zinc-500">
-          Set up your company's workspace entity to invite your team
+        <p className="text-[11px] text-zinc-500 font-medium">
+          Set up your organization workspace configuration
         </p>
       </div>
 
@@ -84,7 +83,6 @@ export default function OrganizationCreation() {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Name Field */}
         <FormField
           label="Organization Name"
           name="name"
@@ -94,7 +92,6 @@ export default function OrganizationCreation() {
           register={register}
         />
 
-        {/* Slug Field */}
         <FormField
           label="Organization Slug"
           name="slug"
@@ -105,27 +102,25 @@ export default function OrganizationCreation() {
           inputClassName="font-mono text-zinc-300"
         />
 
-        {/* Description Field */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">
             Description (Optional)
           </label>
           <textarea
             placeholder="Introduce your team..."
             disabled={isSubmitting}
             {...register("description")}
-            className="w-full min-h-[80px] rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-foreground placeholder:text-zinc-500/60 transition-all duration-200 outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
+            className="w-full min-h-[70px] rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 py-2 text-xs text-foreground placeholder:text-zinc-650/70 transition-all duration-200 outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800"
           />
         </div>
 
-        {/* Submit Button */}
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex w-full items-center justify-center rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+          className="flex h-9 w-full items-center justify-center rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
         >
           {isSubmitting ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
           ) : (
             "Create Organization"
           )}

@@ -8,6 +8,7 @@ export default function WorkspaceChat() {
   const { workspaceId, "*": channelSlug } = useParams();
   const queryClient = useQueryClient();
   const [inputValue, setInputValue] = useState("");
+  const [aiTyping, setAiTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Fetch channels in workspace to match slug
@@ -42,11 +43,82 @@ export default function WorkspaceChat() {
       });
     };
 
+    const handleTyping = (data) => {
+      if (data.userId === "ai" && data.channelId === channelId) {
+        setAiTyping(true);
+      }
+    };
+
+    const handleStopTyping = (data) => {
+      if (data.userId === "ai" && data.channelId === channelId) {
+        setAiTyping(false);
+      }
+    };
+
+    const handleAiMessageChunk = (data) => {
+      if (data.channelId !== channelId) return;
+      queryClient.setQueryData(["messages", channelId], (old = []) => {
+        const exists = old.find((m) => m.id === data.messageId);
+        if (exists) {
+          return old.map((m) =>
+            m.id === data.messageId ? { ...m, content: m.content + data.chunk } : m
+          );
+        } else {
+          return [
+            ...old,
+            {
+              id: data.messageId,
+              channelId: data.channelId,
+              senderId: "ai",
+              sender: { username: "CollabAI" },
+              content: data.chunk,
+              messageType: "AI",
+              createdAt: new Date().toISOString()
+            }
+          ];
+        }
+      });
+    };
+
+    const handleAiMessageComplete = (data) => {
+      if (data.channelId !== channelId) return;
+      setAiTyping(false);
+      queryClient.setQueryData(["messages", channelId], (old = []) => {
+        const exists = old.find((m) => m.id === data.messageId);
+        if (exists) {
+          return old.map((m) =>
+            m.id === data.messageId ? { ...m, content: data.fullContent } : m
+          );
+        } else {
+          return [
+            ...old,
+            {
+              id: data.messageId,
+              channelId: data.channelId,
+              senderId: "ai",
+              sender: { username: "CollabAI" },
+              content: data.fullContent,
+              messageType: "AI",
+              createdAt: new Date().toISOString()
+            }
+          ];
+        }
+      });
+    };
+
     socket.on("receiveMessage", handleReceiveMessage);
+    socket.on("typing", handleTyping);
+    socket.on("stopTyping", handleStopTyping);
+    socket.on("aiMessageChunk", handleAiMessageChunk);
+    socket.on("aiMessageComplete", handleAiMessageComplete);
 
     return () => {
       socket.emit("leaveChannel", channelId);
       socket.off("receiveMessage", handleReceiveMessage);
+      socket.off("typing", handleTyping);
+      socket.off("stopTyping", handleStopTyping);
+      socket.off("aiMessageChunk", handleAiMessageChunk);
+      socket.off("aiMessageComplete", handleAiMessageComplete);
     };
   }, [channelId, queryClient]);
 
@@ -175,7 +247,7 @@ export default function WorkspaceChat() {
               <div key={msg.id} className="animate-in fade-in duration-200">
                 {isAI ? (
                   /* Premium Timeline Card Block (AI Collaboration Layer) */
-                  <div className="flex items-start gap-3 pl-10 select-none">
+                  <div className="flex items-start gap-3 pl-10">
                     <div className="flex-1 bg-zinc-950/20 border border-zinc-950 border-l-2 border-l-purple-500/80 rounded-xl p-4 space-y-3 relative overflow-hidden shadow-sm">
                       {/* Purple aura */}
                       <div className="absolute inset-0 bg-radial-[circle_at_top_left,rgba(139,92,246,0.015),transparent_60%] pointer-events-none" />
@@ -284,6 +356,18 @@ export default function WorkspaceChat() {
               </div>
             );
           })
+        )}
+
+        {aiTyping && (
+          <div className="flex items-start gap-3 p-3 rounded-xl border border-zinc-950 bg-[#050505] animate-pulse">
+            <div className="h-7 w-7 rounded-full bg-purple-950/20 text-[10px] font-bold text-purple-400 border border-purple-900/30 flex items-center justify-center shrink-0">
+              AI
+            </div>
+            <div className="space-y-0.5 select-none">
+              <span className="text-[9px] font-bold text-purple-400 uppercase tracking-widest block">CollabAI</span>
+              <p className="text-[10px] text-zinc-550 italic font-semibold pl-0.5">compiling response...</p>
+            </div>
+          </div>
         )}
 
         <div ref={messagesEndRef} />

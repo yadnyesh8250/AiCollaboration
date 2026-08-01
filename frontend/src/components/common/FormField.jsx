@@ -13,6 +13,7 @@ export default function FormField({
   icon,
   plClass = "pl-9",
   iconClass = "left-3",
+  ...props
 }) {
   return (
     <div className={`space-y-1.5 ${className}`}>
@@ -38,6 +39,7 @@ export default function FormField({
               ? "border-red-900/50 bg-red-950/10 text-red-400 focus:border-red-800 focus:ring-1 focus:ring-red-900/30"
               : "border-zinc-900 bg-zinc-950/40 focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 shadow-sm"
           } ${inputClassName}`}
+          {...props}
           {...(register ? register(name) : {})}
         />
       </div>

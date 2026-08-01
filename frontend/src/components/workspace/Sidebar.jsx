@@ -5,11 +5,12 @@ import { useAuthStore } from "../../stores/authStore";
 import { useUIStore } from "../../stores/uiStore";
 import { api } from "../../services/api/client";
 import { getSocket } from "../../services/socket/connection";
+import FormField from "../common/FormField";
 
 export default function Sidebar() {
   const location = useLocation();
   const { workspaceId } = useParams();
-  const { user } = useAuthStore();
+  const { user, setUser, clearAuth, refreshToken } = useAuthStore();
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -20,6 +21,38 @@ export default function Sidebar() {
   const [newChannelSlug, setNewChannelSlug] = useState("");
   const [newChannelDesc, setNewChannelDesc] = useState("");
   const [newChannelType, setNewChannelType] = useState("PUBLIC");
+
+  // Scratchpad State for Solo User
+  const [scratchpadText, setScratchpadText] = useState(
+    () => localStorage.getItem("acollab-scratchpad") || ""
+  );
+
+  // Profile Modal & Edit States
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("profile"); // "profile" | "account"
+  const [profileUsername, setProfileUsername] = useState("");
+  const [profileFirstName, setProfileFirstName] = useState("");
+  const [profileLastName, setProfileLastName] = useState("");
+  const [profileBio, setProfileBio] = useState("");
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
+  const [profileStatus, setProfileStatus] = useState("Online");
+
+  // Change Password States
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Sync user profile inputs with authStore user state
+  useEffect(() => {
+    if (user) {
+      setProfileUsername(user.username || "");
+      setProfileFirstName(user.firstName || "");
+      setProfileLastName(user.lastName || "");
+      setProfileBio(user.bio || "");
+      setProfileAvatarUrl(user.avatarUrl || "");
+      setProfileStatus(user.status || "Online");
+    }
+  }, [user]);
 
   const { data: orgs = [] } = useQuery({
     queryKey: ["organizations"],
@@ -64,6 +97,41 @@ export default function Sidebar() {
       type: newChannelType,
     });
   };
+
+  const updateProfileMutation = useMutation({
+    mutationFn: (data) => api.patch("/users/profile", data),
+    onSuccess: (res) => {
+      setUser(res.data.user);
+      alert("Profile updated successfully!");
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || "Failed to update profile.");
+    }
+  });
+
+  const changePasswordMutation = useMutation({
+    mutationFn: (data) => api.patch("/users/change-password", data),
+    onSuccess: () => {
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      alert("Password updated successfully!");
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || "Failed to change password.");
+    }
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: () => api.post("/auth/logout", { refreshToken }),
+    onSuccess: () => {
+      clearAuth();
+    },
+    onError: () => {
+      // Force clear client session even if backend logout request fails
+      clearAuth();
+    }
+  });
 
   const { data: dashboardData } = useQuery({
     queryKey: ["workspaceDashboard", workspaceId],
@@ -314,31 +382,22 @@ export default function Sidebar() {
             </div>
           )}
 
-          {/* Live Presence Map status list */}
+          {/* Personal Scratchpad / Notepad */}
           {!isSidebarCollapsed && (
             <div className="space-y-2 pt-2 animate-in fade-in duration-200">
-              <div className="text-[9px] font-bold text-zinc-605 uppercase tracking-widest px-3">
-                PRESENCE MAP
+              <div className="text-[9px] font-bold text-zinc-650 uppercase tracking-widest px-3">
+                Quick Scratchpad
               </div>
-              <div className="space-y-1 px-1">
-                {activeMembersList.length === 0 ? (
-                  <div className="text-[9px] text-zinc-650 italic px-3 py-1">No other active users</div>
-                ) : (
-                  activeMembersList.map((member) => (
-                    <div
-                      key={member.userId}
-                      className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-900/30 text-[10px] text-zinc-450 select-none transition-colors"
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className={`h-1.5 w-1.5 rounded-full ${member.color} shrink-0`} />
-                        <span className="font-semibold text-zinc-300 truncate">{member.name}</span>
-                      </div>
-                      <span className="text-[8px] text-zinc-550 font-bold uppercase shrink-0 truncate max-w-[70px]">
-                        {member.status}
-                      </span>
-                    </div>
-                  ))
-                )}
+              <div className="px-3 pb-1">
+                <textarea
+                  placeholder="Jot down a quick thought..."
+                  value={scratchpadText}
+                  onChange={(e) => {
+                    setScratchpadText(e.target.value);
+                    localStorage.setItem("acollab-scratchpad", e.target.value);
+                  }}
+                  className="w-full min-h-[75px] rounded-lg border border-zinc-900 bg-zinc-950/40 p-2.5 text-[10px] text-zinc-350 placeholder:text-zinc-700 outline-none focus:border-zinc-800 transition-all resize-none font-sans leading-relaxed"
+                />
               </div>
             </div>
           )}
@@ -368,7 +427,10 @@ export default function Sidebar() {
 
           {/* User Profile bar */}
           <div className={`flex items-center ${isSidebarCollapsed ? "justify-center" : "justify-between"}`}>
-            <div className="flex items-center gap-2.5 overflow-hidden">
+            <button
+              onClick={() => setIsProfileModalOpen(true)}
+              className="flex items-center gap-2.5 overflow-hidden text-left hover:opacity-85 transition-opacity cursor-pointer flex-1"
+            >
               <div className="h-6 w-6 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] font-bold text-zinc-300 flex items-center justify-center relative shrink-0">
                 {user?.username?.substring(0, 2).toUpperCase() || "AD"}
                 <span className="absolute bottom-0 right-0 h-1.5 w-1.5 rounded-full bg-emerald-500 border border-zinc-950" />
@@ -378,10 +440,10 @@ export default function Sidebar() {
                   <p className="text-xs font-bold text-zinc-200 truncate">
                     {user?.username || "Guest User"}
                   </p>
-                  <p className="text-[9px] text-zinc-600 font-bold uppercase">Online</p>
+                  <p className="text-[9px] text-zinc-600 font-bold uppercase">{user?.status || "Online"}</p>
                 </div>
               )}
-            </div>
+            </button>
 
             {!isSidebarCollapsed && (
               <button
@@ -396,6 +458,214 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
+
+      {/* User Profile & Account Settings Modal */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-xl border border-zinc-900 bg-zinc-950 p-6 space-y-5 shadow-2xl relative animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
+              <div className="flex items-center gap-2 select-none">
+                <div className="h-5 w-5 rounded-full bg-zinc-900 border border-zinc-800 text-[8px] font-bold text-zinc-400 flex items-center justify-center uppercase shrink-0">
+                  {user?.username?.substring(0, 2).toUpperCase()}
+                </div>
+                <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-widest">
+                  Account Settings
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsProfileModalOpen(false)}
+                className="text-zinc-650 hover:text-white cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Tab switchers */}
+            <div className="flex border-b border-zinc-900/60 pb-1 text-[10px] font-bold tracking-widest text-zinc-550 uppercase select-none">
+              <button
+                onClick={() => setActiveTab("profile")}
+                className={`pb-1 px-3 border-b-2 transition-all cursor-pointer ${
+                  activeTab === "profile" ? "border-white text-white" : "border-transparent hover:text-zinc-350"
+                }`}
+              >
+                Profile Info
+              </button>
+              <button
+                onClick={() => setActiveTab("account")}
+                className={`pb-1 px-3 border-b-2 transition-all cursor-pointer ${
+                  activeTab === "account" ? "border-white text-white" : "border-transparent hover:text-zinc-355"
+                }`}
+              >
+                Security & Status
+              </button>
+            </div>
+
+            {/* Tabs content container */}
+            <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-4 no-scrollbar">
+              {activeTab === "profile" ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    updateProfileMutation.mutate({
+                      username: profileUsername,
+                      firstName: profileFirstName,
+                      lastName: profileLastName,
+                      bio: profileBio,
+                      avatarUrl: profileAvatarUrl,
+                    });
+                  }}
+                  className="space-y-4"
+                >
+                  <FormField
+                    label="Username"
+                    name="username"
+                    value={profileUsername}
+                    onChange={(e) => setProfileUsername(e.target.value)}
+                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField
+                      label="First Name"
+                      name="firstName"
+                      value={profileFirstName}
+                      onChange={(e) => setProfileFirstName(e.target.value)}
+                    />
+                    <FormField
+                      label="Last Name"
+                      name="lastName"
+                      value={profileLastName}
+                      onChange={(e) => setProfileLastName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block select-none">Bio</label>
+                    <textarea
+                      placeholder="Tell us about yourself..."
+                      value={profileBio}
+                      onChange={(e) => setProfileBio(e.target.value)}
+                      className="w-full min-h-[60px] rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 py-2 text-xs text-foreground placeholder:text-zinc-600/70 outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all resize-none"
+                    />
+                  </div>
+
+                  <FormField
+                    label="Avatar URL"
+                    name="avatarUrl"
+                    value={profileAvatarUrl}
+                    onChange={(e) => setProfileAvatarUrl(e.target.value)}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={updateProfileMutation.isPending}
+                    className="w-full h-8.5 rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 transition-all cursor-pointer"
+                  >
+                    {updateProfileMutation.isPending ? "Saving..." : "Save Profile Details"}
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-5">
+                  {/* Status update */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      updateProfileMutation.mutate({ status: profileStatus });
+                    }}
+                    className="space-y-3.5 border-b border-zinc-900 pb-4"
+                  >
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block select-none">Presence Status</label>
+                      <select
+                        value={profileStatus}
+                        onChange={(e) => setProfileStatus(e.target.value)}
+                        className="w-full h-8.5 rounded-lg border border-zinc-900 bg-zinc-950/40 px-2 text-xs text-zinc-350 outline-none focus:border-zinc-700 cursor-pointer"
+                      >
+                        <option value="Online">🟢 Online</option>
+                        <option value="Away">🟡 Away</option>
+                        <option value="Do Not Disturb">🔴 Do Not Disturb</option>
+                        <option value="Offline">⚫ Invisible</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={updateProfileMutation.isPending}
+                      className="w-full h-8 px-3 rounded-lg border border-zinc-900 hover:bg-zinc-900/30 text-xs font-semibold text-zinc-300 transition-all cursor-pointer"
+                    >
+                      Update Status
+                    </button>
+                  </form>
+
+                  {/* Password Change */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (newPassword !== confirmPassword) {
+                        alert("Passwords do not match.");
+                        return;
+                      }
+                      changePasswordMutation.mutate({ oldPassword, newPassword });
+                    }}
+                    className="space-y-4 border-b border-zinc-900 pb-4"
+                  >
+                    <h4 className="text-[10px] font-bold text-zinc-450 uppercase tracking-widest select-none">Change Password</h4>
+                    <FormField
+                      label="Current Password"
+                      name="oldPassword"
+                      type="password"
+                      placeholder="••••••••"
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                    />
+                    <FormField
+                      label="New Password"
+                      name="newPassword"
+                      type="password"
+                      placeholder="••••••••"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                    <FormField
+                      label="Confirm New Password"
+                      name="confirmPassword"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={changePasswordMutation.isPending}
+                      className="w-full h-8 px-3 rounded-lg border border-zinc-900 hover:bg-zinc-900/30 text-xs font-semibold text-zinc-300 transition-all cursor-pointer"
+                    >
+                      {changePasswordMutation.isPending ? "Updating..." : "Change Password"}
+                    </button>
+                  </form>
+
+                  {/* Sign Out Warning Area */}
+                  <div className="pt-2 select-none">
+                    <button
+                      onClick={() => {
+                        if (confirm("Are you sure you want to sign out?")) {
+                          logoutMutation.mutate();
+                        }
+                      }}
+                      disabled={logoutMutation.isPending}
+                      className="w-full h-9 rounded-lg bg-red-950/20 border border-red-900/30 hover:bg-red-900/25 text-xs font-bold text-red-400 hover:text-red-300 transition-all cursor-pointer"
+                    >
+                      {logoutMutation.isPending ? "Signing out..." : "Sign Out of A-Collab"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Channel Modal Overlay */}
       {isChannelModalOpen && (
@@ -434,7 +704,7 @@ export default function Sidebar() {
               />
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">Description (Optional)</label>
+                <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block">Description (Optional)</label>
                 <input
                   type="text"
                   placeholder="What is this channel about..."
@@ -445,7 +715,7 @@ export default function Sidebar() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">Type</label>
+                <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block">Type</label>
                 <select
                   value={newChannelType}
                   onChange={(e) => setNewChannelType(e.target.value)}

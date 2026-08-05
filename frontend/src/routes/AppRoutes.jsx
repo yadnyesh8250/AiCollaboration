@@ -24,6 +24,7 @@ import WorkspaceTasks from "../pages/workspace/WorkspaceTasks";
 import WorkspaceChat from "../pages/workspace/WorkspaceChat";
 import WorkspaceDocs from "../pages/workspace/WorkspaceDocs";
 import WorkspaceSettings from "../pages/workspace/WorkspaceSettings";
+import WorkspaceHome from "../pages/workspace/WorkspaceHome";
 
 // Simple Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -165,7 +166,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="tasks" replace />} />
+        <Route index element={<WorkspaceHome />} />
         <Route path="tasks" element={<WorkspaceTasks />} />
         <Route path="chat" element={<WorkspaceChat />} />
         <Route path="docs" element={<WorkspaceDocs />} />

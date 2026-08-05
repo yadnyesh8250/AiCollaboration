@@ -107,6 +107,30 @@ export const acceptInvite = async (req, res) => {
       return res.status(403).json({ success: false, message: "This invite was not sent to your email address." });
     }
 
+    // Fetch workspace to get parent organization ID
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: invite.workspaceId }
+    });
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: "Workspace not found." });
+    }
+
+    // Auto-link user to the parent organization
+    await prisma.organizationMember.upsert({
+      where: {
+        userId_organizationId: {
+          userId: req.user.id,
+          organizationId: workspace.organizationId
+        }
+      },
+      update: {},
+      create: {
+        userId: req.user.id,
+        organizationId: workspace.organizationId,
+        role: invite.role === "OWNER" || invite.role === "ADMIN" ? "ADMIN" : "MEMBER"
+      }
+    });
+
     // Create the workspace member
     const member = await prisma.workspaceMember.create({
       data: {

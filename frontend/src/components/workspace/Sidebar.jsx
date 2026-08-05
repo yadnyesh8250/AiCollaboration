@@ -190,54 +190,96 @@ export default function Sidebar() {
     };
   });
 
-  const primaryNav = [
+  const defaultChannels = [
+    { id: "gen", name: "general", slug: "general" },
+    { id: "ann", name: "announcements", slug: "announcements" },
+    { id: "back", name: "backend", slug: "backend" },
+    { id: "front", name: "frontend", slug: "frontend" },
+    { id: "des", name: "design", slug: "design" },
+    { id: "rand", name: "random", slug: "random" },
+  ];
+
+  const mergedChannels = [...channels];
+  defaultChannels.forEach((dc) => {
+    if (!mergedChannels.some((c) => c.slug === dc.slug)) {
+      mergedChannels.push(dc);
+    }
+  });
+
+  const navigationGroups = [
     {
-      name: "Inbox",
-      path: "/inbox",
-      badge: 0,
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-3.5 h-3.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 9v.906a2.25 2.25 0 0 1-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 0 0 1.183 1.981l6.478 3.488m8.839 2.51-4.66-2.51m0 0-1.023-.55a2.25 2.25 0 0 0-2.134 0l-1.022.55m0 0-4.661 2.51m16.5 1.615a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V8.844a2.25 2.25 0 0 1 1.183-1.981l7.5-4.039a2.25 2.25 0 0 1 2.134 0l7.5 4.039a2.25 2.25 0 0 1 1.183 1.98V19.5Z" />
-        </svg>
-      ),
+      title: "Workspace",
+      items: [
+        {
+          name: "Home",
+          path: "",
+          exact: true,
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+            </svg>
+          ),
+        }
+      ]
     },
     {
-      name: "Chat",
-      path: "/chat",
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-3.5 h-3.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a.596.596 0 0 1-.548-.548 5.86 5.86 0 0 1 .98-3.189A8.11 8.11 0 0 1 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-        </svg>
-      ),
+      title: "Communication",
+      items: [
+        {
+          name: "Chat Feed",
+          path: "/chat",
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a.596.596 0 0 1-.548-.548 5.86 5.86 0 0 1 .98-3.189A8.11 8.11 0 0 1 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+            </svg>
+          ),
+        }
+      ],
+      isChannelList: true
     },
     {
-      name: "Tasks",
-      path: "/tasks",
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-3.5 h-3.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.375M9 18h3.375m1.875-12h7.5M14.25 9h7.5m-7.5 3h7.5m-7.5 3h7.5m-7.5 3h7.5M3.75 6H7.5M3.75 9H7.5M3.75 12H7.5m-3.75 3H7.5m-3.75 3H7.5M21 3H3a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1Z" />
-        </svg>
-      ),
+      title: "Work",
+      items: [
+        {
+          name: "Tasks Board",
+          path: "/tasks",
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.375M9 18h3.375m1.875-12h7.5M14.25 9h7.5m-7.5 3h7.5m-7.5 3h7.5m-7.5 3h7.5M3.75 6H7.5M3.75 9H7.5M3.75 12H7.5m-3.75 3H7.5m-3.75 3H7.5M21 3H3a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1Z" />
+            </svg>
+          ),
+        }
+      ]
     },
     {
-      name: "Docs",
-      path: "/docs",
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-3.5 h-3.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-        </svg>
-      ),
+      title: "Knowledge",
+      items: [
+        {
+          name: "Documents",
+          path: "/docs",
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+            </svg>
+          ),
+        }
+      ]
     },
     {
-      name: "Settings",
-      path: "/settings",
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-3.5 h-3.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-        </svg>
-      ),
-    },
+      title: "Workspace Settings",
+      items: [
+        {
+          name: "Settings & Invites",
+          path: "/settings",
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+          ),
+        }
+      ]
+    }
   ];
 
   const currentOrg = orgs[0] || { id: "1", name: "A-Collab Org", slug: "acollab-org" };
@@ -293,71 +335,81 @@ export default function Sidebar() {
             )}
           </div>
 
-          {/* Primary Navigation */}
-          <nav className="space-y-0.5">
-            {primaryNav.map((item) => {
-              const isActive = location.pathname.endsWith(item.path) || (item.path === "/chat" && location.pathname.includes("/channels/"));
-              return (
-                <Link
-                  key={item.name}
-                  to={`/workspaces/${workspaceId || "1"}${item.path}`}
-                  className={`flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                    isActive
-                      ? "bg-zinc-900/35 text-white border border-zinc-900"
-                      : "text-zinc-550 hover:bg-zinc-900/20 hover:text-zinc-200 border border-transparent"
-                  } ${isSidebarCollapsed ? "justify-center" : ""}`}
-                >
-                  <span className="text-zinc-500 shrink-0">{item.icon}</span>
-                  {!isSidebarCollapsed && (
-                    <>
-                      <span className="flex-1 truncate">{item.name}</span>
-                      {item.badge > 0 && (
-                        <span className="bg-zinc-900 text-[9px] text-zinc-500 px-1 py-0.5 rounded font-mono border border-zinc-800">
-                          {item.badge}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Grouped Sidebar Navigation */}
+          <div className="space-y-4 pt-1">
+            {navigationGroups.map((group, gIdx) => (
+              <div key={gIdx} className="space-y-1">
+                {/* Section Title */}
+                {!isSidebarCollapsed && (
+                  <div className="px-3 text-[9px] font-bold text-zinc-600 uppercase tracking-widest select-none">
+                    {group.title}
+                  </div>
+                )}
+                
+                {/* Nav Links mapping */}
+                <nav className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const isActive = item.exact 
+                      ? location.pathname === `/workspaces/${workspaceId || "1"}` || location.pathname === `/workspaces/${workspaceId || "1"}/`
+                      : location.pathname.endsWith(item.path) || (item.path === "/chat" && location.pathname.includes("/channels/"));
+                      
+                    return (
+                      <Link
+                        key={item.name}
+                        to={`/workspaces/${workspaceId || "1"}${item.path}`}
+                        className={`flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                          isActive
+                            ? "bg-zinc-900/35 text-white border border-zinc-900"
+                            : "text-zinc-555 hover:bg-zinc-900/20 hover:text-zinc-200 border border-transparent"
+                        } ${isSidebarCollapsed ? "justify-center" : ""}`}
+                      >
+                        <span className="text-zinc-500 shrink-0">{item.icon}</span>
+                        {!isSidebarCollapsed && (
+                          <span className="flex-1 truncate">{item.name}</span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </nav>
 
-          {/* Collapsible Projects / Channels section */}
-          {!isSidebarCollapsed && (
-            <div className="pt-2 space-y-1.5">
-              <div className="flex items-center justify-between px-3 text-[9px] font-bold text-zinc-650 uppercase tracking-widest">
-                <span>Channels</span>
-                <button
-                  onClick={() => setIsChannelModalOpen(true)}
-                  className="hover:text-zinc-200 transition-colors cursor-pointer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3 h-3">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
-                </button>
+                {/* If the group contains channels list, render it inside the group */}
+                {group.isChannelList && !isSidebarCollapsed && (
+                  <div className="pl-3.5 pr-2 pt-1.5 space-y-1">
+                    <div className="flex items-center justify-between text-[9px] font-bold text-zinc-650 uppercase tracking-widest select-none">
+                      <span>Channels</span>
+                      <button
+                        onClick={() => setIsChannelModalOpen(true)}
+                        className="hover:text-zinc-250 transition-colors cursor-pointer"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-2.8 h-2.8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="space-y-0.5 pt-0.5">
+                      {mergedChannels.map((channel) => {
+                        const isActive = location.pathname.endsWith(`/channels/${channel.slug}`);
+                        return (
+                          <Link
+                            key={channel.id}
+                            to={`/workspaces/${workspaceId || "1"}/channels/${channel.slug}`}
+                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                              isActive
+                                ? "bg-zinc-900/35 text-white border border-zinc-900"
+                                : "text-zinc-555 hover:bg-zinc-900/20 hover:text-zinc-200 border border-transparent"
+                            }`}
+                          >
+                            <span className="text-zinc-600 font-medium shrink-0">#</span>
+                            <span className="flex-1 truncate">{channel.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="space-y-0.5">
-                {channels.map((channel) => {
-                  const isActive = location.pathname.endsWith(`/channels/${channel.slug}`);
-                  return (
-                    <Link
-                      key={channel.id}
-                      to={`/workspaces/${workspaceId || "1"}/channels/${channel.slug}`}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                        isActive
-                          ? "bg-zinc-900/35 text-white border border-zinc-900"
-                          : "text-zinc-550 hover:bg-zinc-900/20 hover:text-zinc-200 border border-transparent"
-                      }`}
-                    >
-                      <span className="text-zinc-600 font-medium shrink-0">#</span>
-                      <span className="flex-1 truncate">{channel.name}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
 
           {/* Workspace Telemetry Dashboard Stats */}
           {!isSidebarCollapsed && (

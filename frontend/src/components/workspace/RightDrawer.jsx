@@ -30,7 +30,7 @@ export default function RightDrawer() {
         // List existing conversations for workspace
         const res = await api.get(`/workspaces/${workspaceId}/ai/conversations`);
         const conversations = res.data.conversations || [];
-        
+
         if (conversations.length > 0) {
           // Select most recent conversation
           setActiveConversationId(conversations[0].id);
@@ -84,7 +84,7 @@ export default function RightDrawer() {
 
     try {
       let convId = activeConversationId;
-      
+
       // Fallback: If no conversation ID, create one
       if (!convId) {
         const createRes = await api.post(`/workspaces/${workspaceId}/ai/conversations`, {
@@ -155,11 +155,10 @@ export default function RightDrawer() {
               )}
             </div>
             <div
-              className={`text-xs max-w-[88%] rounded-xl p-3 leading-relaxed border transition-all ${
-                msg.sender === "AI"
+              className={`text-xs max-w-[88%] rounded-xl p-3 leading-relaxed border transition-all ${msg.sender === "AI"
                   ? "bg-zinc-950/40 border-zinc-950 text-zinc-350 shadow-sm"
                   : "bg-white text-black border-transparent font-medium shadow-sm"
-              }`}
+                }`}
             >
               {msg.text}
             </div>

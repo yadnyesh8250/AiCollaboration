@@ -111,3 +111,78 @@ export const getOrganization = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error." });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/organizations/global/all
+// List all organizations globally in the system
+// ─────────────────────────────────────────────────────────────────────────────
+export const listAllGlobalOrganizations = async (req, res) => {
+  try {
+    const organizations = await prisma.organization.findMany({
+      include: {
+        _count: { select: { workspaces: true, members: true } }
+      },
+      orderBy: { name: "asc" }
+    });
+    return res.status(200).json({ success: true, organizations });
+  } catch (err) {
+    console.error("[listAllGlobalOrganizations]", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/organizations/:orgId/join
+// Join an organization and its first workspace automatically
+// ─────────────────────────────────────────────────────────────────────────────
+export const joinOrganization = async (req, res) => {
+  try {
+    const { orgId } = req.params;
+
+    const org = await prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) {
+      return res.status(404).json({ success: false, message: "Organization not found." });
+    }
+
+    const orgMember = await prisma.organizationMember.upsert({
+      where: {
+        userId_organizationId: {
+          userId: req.user.id,
+          organizationId: orgId
+        }
+      },
+      update: {},
+      create: {
+        userId: req.user.id,
+        organizationId: orgId,
+        role: "MEMBER"
+      }
+    });
+
+    const workspaces = await prisma.workspace.findMany({
+      where: { organizationId: orgId }
+    });
+
+    if (workspaces.length > 0) {
+      await prisma.workspaceMember.upsert({
+        where: {
+          userId_workspaceId: {
+            userId: req.user.id,
+            workspaceId: workspaces[0].id
+          }
+        },
+        update: {},
+        create: {
+          userId: req.user.id,
+          workspaceId: workspaces[0].id,
+          role: "MEMBER"
+        }
+      });
+    }
+
+    return res.status(200).json({ success: true, message: "Joined organization successfully.", orgMember });
+  } catch (err) {
+    console.error("[joinOrganization]", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};

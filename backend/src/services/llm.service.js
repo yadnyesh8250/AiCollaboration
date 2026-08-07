@@ -112,7 +112,10 @@ export const queryModel = async ({ workspaceId, systemInstruction, prompt, useTo
     where: { workspaceId }
   });
 
-  const modelName = config?.preferredModel || "gemini-2.5-flash";
+  let modelName = config?.preferredModel || "gemini-flash-latest";
+  if (modelName === "gemini-2.5-flash") {
+    modelName = "gemini-flash-latest";
+  }
   const temperature = config?.temperature ?? 0.7;
   const maxTokens = config?.maxTokens ?? 4096;
 
@@ -143,7 +146,12 @@ export const queryModel = async ({ workspaceId, systemInstruction, prompt, useTo
   const response = result.response;
   
   const latencyMs = Date.now() - startTime;
-  const contentText = response.text() || "";
+  let contentText = "";
+  try {
+    contentText = response.text() || "";
+  } catch (textErr) {
+    aiLogger.info("Response has no text content (likely a function call request)");
+  }
   
   // Count completion tokens
   const completionResult = await model.countTokens(contentText);
@@ -153,8 +161,10 @@ export const queryModel = async ({ workspaceId, systemInstruction, prompt, useTo
   const estimatedCostUsd = (promptTokens * PRICING.INPUT_COST_PER_TOKEN) + 
                            (completionTokens * PRICING.OUTPUT_COST_PER_TOKEN);
 
-  // Check if model returned function calls
-  const functionCalls = response.functionCalls || [];
+  // Check if model returned function calls (supporting both method and array properties in SDK versions)
+  const functionCalls = (typeof response.functionCalls === "function" 
+    ? response.functionCalls() 
+    : response.functionCalls) || [];
 
   const resultData = {
     content: contentText,
@@ -187,7 +197,10 @@ export const streamModel = async ({ workspaceId, systemInstruction, prompt, onCh
     where: { workspaceId }
   });
 
-  const modelName = config?.preferredModel || "gemini-2.5-flash";
+  let modelName = config?.preferredModel || "gemini-flash-latest";
+  if (modelName === "gemini-2.5-flash") {
+    modelName = "gemini-flash-latest";
+  }
   const temperature = config?.temperature ?? 0.7;
   const maxTokens = config?.maxTokens ?? 4096;
 
@@ -245,7 +258,10 @@ export const queryModelJSON = async ({ workspaceId, actorId, systemInstruction, 
     where: { workspaceId }
   });
 
-  const modelName = config?.preferredModel || "gemini-2.5-flash";
+  let modelName = config?.preferredModel || "gemini-flash-latest";
+  if (modelName === "gemini-2.5-flash") {
+    modelName = "gemini-flash-latest";
+  }
   const temperature = config?.temperature ?? 0.7;
   const maxTokens = config?.maxTokens ?? 4096;
 

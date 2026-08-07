@@ -525,7 +525,7 @@ model WorkspaceAIConfig {
   id                String    @id @default(uuid())
   workspaceId       String    @unique
   workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  preferredModel    String    @default("gemini-2.5-flash")
+  preferredModel    String    @default("gemini-flash-latest")
   temperature       Float     @default(0.7)
   maxTokens         Int       @default(2048)
   baseSystemPrompt  String?   @db.Text

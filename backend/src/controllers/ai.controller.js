@@ -222,7 +222,15 @@ export const sendPrompt = async (req, res) => {
     });
   } catch (err) {
     console.error("[sendPrompt]", err);
-    return res.status(500).json({ success: false, message: "Internal server error." });
+    const isAuthErr = err.status === 401 || err.statusCode === 401 || err.message?.includes("API_KEY_INVALID") || err.message?.includes("API key") || err.message?.includes("credentials") || err.message?.includes("Unauthorized");
+    if (isAuthErr) {
+      return res.status(401).json({
+        success: false,
+        errorType: "GEMINI_AUTH_FAILED",
+        message: "Invalid Gemini API Key. Please configure a valid GEMINI_API_KEY starting with 'AIzaSy' in backend/.env"
+      });
+    }
+    return res.status(500).json({ success: false, message: err.message || "Internal server error." });
   }
 };
 

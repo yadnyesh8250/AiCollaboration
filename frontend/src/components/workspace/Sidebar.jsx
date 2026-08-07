@@ -284,10 +284,18 @@ export default function Sidebar() {
 
   const currentOrg = orgs[0] || { id: "1", name: "A-Collab Org", slug: "acollab-org" };
 
+  const { data: workspaces = [] } = useQuery({
+    queryKey: ["workspaces", currentOrg?.id],
+    queryFn: () => api.get(`/organizations/${currentOrg?.id}/workspaces`).then((res) => res.data.workspaces),
+    enabled: !!currentOrg?.id,
+  });
+
+  const activeWorkspace = workspaces.find((w) => w.id === workspaceId) || workspaces[0] || { id: "1", name: "Acme Technologies" };
+
   return (
     <>
       <div
-        className={`h-screen bg-black border-r border-zinc-950 flex flex-col justify-between transition-all duration-300 fixed lg:static inset-y-0 left-0 z-40 select-none ${
+        className={`h-screen bg-card border-r border-border flex flex-col justify-between transition-all duration-300 fixed lg:static inset-y-0 left-0 z-40 select-none ${
           isSidebarCollapsed ? "-translate-x-full lg:translate-x-0 lg:w-16" : "translate-x-0 lg:w-56"
         }`}
       >
@@ -298,39 +306,78 @@ export default function Sidebar() {
               <div className="relative w-full">
                 <button
                   onClick={() => setIsOrgDropdownOpen(!isOrgDropdownOpen)}
-                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-zinc-900/40 w-full text-left transition-colors cursor-pointer border border-transparent hover:border-zinc-900"
+                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-zinc-100/80 w-full text-left transition-colors cursor-pointer border border-border bg-background"
                 >
-                  <div className="flex h-5 w-5 items-center justify-center rounded bg-white text-black text-[10px] font-black">
-                    A
+                  <div className="flex h-5 w-5 items-center justify-center rounded bg-primary text-white text-[10px] font-black">
+                    {activeWorkspace?.name?.substring(0, 1).toUpperCase() || "A"}
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    <p className="text-xs font-bold text-zinc-200 truncate">{currentOrg.name}</p>
+                    <p className="text-[11px] font-bold text-zinc-700 truncate">{activeWorkspace?.name}</p>
+                    <p className="text-[9px] text-zinc-400 font-semibold truncate">{currentOrg?.name}</p>
                   </div>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-zinc-650">
+                  <svg xmlns="http://www.w3.org/2050/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-zinc-500">
                     <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
                   </svg>
                 </button>
 
                 {isOrgDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-950 border border-zinc-900 rounded-lg shadow-xl z-20 overflow-hidden py-1">
-                    {orgs.map((org) => (
-                      <button
-                        key={org.id}
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden py-1 divide-y divide-border">
+                    {/* Workspaces List Section */}
+                    <div className="py-1">
+                      <div className="px-2.5 py-0.5 text-[8px] font-bold text-zinc-400 uppercase tracking-wider select-none">
+                        Workspaces
+                      </div>
+                      {workspaces.map((w) => (
+                        <Link
+                          key={w.id}
+                          to={`/workspaces/${w.id}`}
+                          onClick={() => setIsOrgDropdownOpen(false)}
+                          className={`w-full block px-2.5 py-1 text-[11px] text-left hover:bg-zinc-50 transition-colors font-bold ${
+                            w.id === workspaceId ? "text-primary bg-primary/5" : "text-zinc-650 hover:text-zinc-900"
+                          }`}
+                        >
+                          {w.name}
+                        </Link>
+                      ))}
+                      <Link
+                        to="/create-organization"
                         onClick={() => setIsOrgDropdownOpen(false)}
-                        className="w-full px-3 py-1.5 text-xs text-left hover:bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                        className="w-full block px-2.5 py-1 text-[10px] text-left text-zinc-450 hover:text-primary hover:bg-zinc-50 font-bold transition-colors"
                       >
-                        {org.name}
-                      </button>
-                    ))}
+                        + Create Workspace
+                      </Link>
+                    </div>
+
+                    {/* Organizations List Section */}
+                    <div className="py-1">
+                      <div className="px-2.5 py-0.5 text-[8px] font-bold text-zinc-400 uppercase tracking-wider select-none">
+                        Organizations
+                      </div>
+                      {orgs.map((org) => (
+                        <div
+                          key={org.id}
+                          className="w-full px-2.5 py-1 text-[11px] text-left text-zinc-500 font-semibold truncate select-none"
+                        >
+                          {org.name}
+                        </div>
+                      ))}
+                      <Link
+                        to="/create-organization"
+                        onClick={() => setIsOrgDropdownOpen(false)}
+                        className="w-full block px-2.5 py-1 text-[10px] text-left text-zinc-450 hover:text-primary hover:bg-zinc-50 font-bold transition-colors"
+                      >
+                        + Switch Organization
+                      </Link>
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
               <button
                 onClick={toggleSidebar}
-                className="mx-auto flex h-6 w-6 items-center justify-center rounded bg-white text-black text-xs font-black shadow-sm cursor-pointer"
+                className="mx-auto flex h-6 w-6 items-center justify-center rounded bg-primary text-white text-xs font-black shadow-sm cursor-pointer"
               >
-                A
+                {activeWorkspace?.name?.substring(0, 1).toUpperCase() || "A"}
               </button>
             )}
           </div>

@@ -56,10 +56,29 @@ export function useAuthMutations() {
     },
   });
 
+  const googleLoginMutation = useMutation({
+    mutationFn: ({ credential, accessToken }) =>
+      authService.googleLogin(credential, accessToken),
+    onSuccess: (data) => {
+      if (data.accessToken && data.refreshToken) {
+        setTokens(data.accessToken, data.refreshToken);
+        if (data.user) {
+          setUser(data.user);
+        }
+        queryClient.invalidateQueries();
+        navigate("/", { replace: true });
+      }
+    },
+  });
+
   return {
     login: loginMutation.mutate,
     isLoggingIn: loginMutation.isPending,
     loginError: loginMutation.error,
+
+    googleLogin: googleLoginMutation.mutate,
+    isGoogleLoggingIn: googleLoginMutation.isPending,
+    googleLoginError: googleLoginMutation.error,
     
     register: registerMutation.mutate,
     isRegistering: registerMutation.isPending,

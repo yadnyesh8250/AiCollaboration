@@ -7,7 +7,9 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().trim().min(8, "JWT_REFRESH_SECRET must be at least 8 characters"),
   GEMINI_API_KEY: z.string().trim().min(1, "GEMINI_API_KEY is required"),
   REDIS_URL: z.string().trim().min(1, "REDIS_URL is required"),
-  PORT: z.string().optional().default("5000")
+  PORT: z.string().optional().default("5000"),
+  GOOGLE_CLIENT_ID: z.string().trim().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().trim().optional()
 });
 
 /**

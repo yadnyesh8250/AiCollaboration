@@ -6,6 +6,11 @@ export const authService = {
     return res.data;
   },
 
+  async googleLogin(credential, accessToken) {
+    const res = await api.post("/auth/google", { credential, accessToken });
+    return res.data;
+  },
+
   async register(email, username, password) {
     const res = await api.post("/auth/register", {
       email,

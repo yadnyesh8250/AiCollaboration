@@ -1,48 +1,41 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../../stores/authStore";
 import { useUIStore } from "../../stores/uiStore";
 import { api } from "../../services/api/client";
 import { getSocket } from "../../services/socket/connection";
-import FormField from "../common/FormField";
+import aCollabLogo from "../../assets/logo.png";
 
 export default function Sidebar() {
   const location = useLocation();
   const { workspaceId } = useParams();
+  const navigate = useNavigate();
   const { user, setUser, clearAuth, refreshToken } = useAuthStore();
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  // Channel Creation States
+  // Channel creation
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelSlug, setNewChannelSlug] = useState("");
   const [newChannelDesc, setNewChannelDesc] = useState("");
   const [newChannelType, setNewChannelType] = useState("PUBLIC");
 
-  // Scratchpad State for Solo User
-  const [scratchpadText, setScratchpadText] = useState(
-    () => localStorage.getItem("acollab-scratchpad") || ""
-  );
-
-  // Profile Modal & Edit States
+  // Profile modal
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("profile"); // "profile" | "account"
+  const [profileTab, setProfileTab] = useState("profile");
   const [profileUsername, setProfileUsername] = useState("");
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
   const [profileBio, setProfileBio] = useState("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
   const [profileStatus, setProfileStatus] = useState("Online");
-
-  // Change Password States
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Sync user profile inputs with authStore user state
   useEffect(() => {
     if (user) {
       setProfileUsername(user.username || "");
@@ -54,6 +47,7 @@ export default function Sidebar() {
     }
   }, [user]);
 
+  // Queries
   const { data: orgs = [] } = useQuery({
     queryKey: ["organizations"],
     queryFn: () => api.get("/organizations").then((res) => res.data.organizations),
@@ -65,698 +59,411 @@ export default function Sidebar() {
     enabled: !!workspaceId,
   });
 
+  const { data: workspaces = [] } = useQuery({
+    queryKey: ["workspaces", orgs[0]?.id],
+    queryFn: () => api.get(`/organizations/${orgs[0]?.id}/workspaces`).then((res) => res.data.workspaces),
+    enabled: !!orgs[0]?.id,
+  });
+
+  const activeWorkspace = workspaces.find((w) => w.id === workspaceId) || workspaces[0];
+  const currentOrg = orgs[0];
+
+  // Mutations
   const createChannelMutation = useMutation({
     mutationFn: (data) => api.post(`/workspaces/${workspaceId}/channels`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
       setIsChannelModalOpen(false);
-      setNewChannelName("");
-      setNewChannelSlug("");
-      setNewChannelDesc("");
-      setNewChannelType("PUBLIC");
+      setNewChannelName(""); setNewChannelSlug(""); setNewChannelDesc(""); setNewChannelType("PUBLIC");
     },
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: (data) => api.patch("/users/profile", data),
+    onSuccess: (res) => { setUser(res.data.user); alert("Profile updated!"); },
+    onError: (err) => alert(err.response?.data?.message || "Failed to update profile."),
+  });
+
+  const changePasswordMutation = useMutation({
+    mutationFn: (data) => api.patch("/users/change-password", data),
+    onSuccess: () => { setOldPassword(""); setNewPassword(""); setConfirmPassword(""); alert("Password updated!"); },
+    onError: (err) => alert(err.response?.data?.message || "Failed to change password."),
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: () => api.post("/auth/logout", { refreshToken }),
+    onSuccess: () => clearAuth(),
+    onError: () => clearAuth(),
   });
 
   const handleChannelNameChange = (e) => {
     const val = e.target.value;
     setNewChannelName(val);
-    const generatedSlug = val
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-    setNewChannelSlug(generatedSlug);
+    setNewChannelSlug(val.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""));
   };
 
   const handleCreateChannel = (e) => {
     e.preventDefault();
     if (!newChannelName.trim() || !newChannelSlug.trim()) return;
-    createChannelMutation.mutate({
-      name: newChannelName.trim(),
-      slug: newChannelSlug.trim(),
-      description: newChannelDesc.trim() || null,
-      type: newChannelType,
-    });
+    createChannelMutation.mutate({ name: newChannelName.trim(), slug: newChannelSlug.trim(), description: newChannelDesc.trim() || null, type: newChannelType });
   };
 
-  const updateProfileMutation = useMutation({
-    mutationFn: (data) => api.patch("/users/profile", data),
-    onSuccess: (res) => {
-      setUser(res.data.user);
-      alert("Profile updated successfully!");
-    },
-    onError: (err) => {
-      alert(err.response?.data?.message || "Failed to update profile.");
-    }
-  });
+  // Helper: check active route
+  const isActive = (path, exact = false) => {
+    const base = `/workspaces/${workspaceId}`;
+    if (exact) return location.pathname === base || location.pathname === `${base}/`;
+    return location.pathname === `${base}${path}` || (path !== "" && location.pathname.startsWith(`${base}${path}`));
+  };
 
-  const changePasswordMutation = useMutation({
-    mutationFn: (data) => api.patch("/users/change-password", data),
-    onSuccess: () => {
-      setOldPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      alert("Password updated successfully!");
-    },
-    onError: (err) => {
-      alert(err.response?.data?.message || "Failed to change password.");
-    }
-  });
+  const isChannelActive = (slug) => location.pathname.includes(`/channels/${slug}`);
 
-  const logoutMutation = useMutation({
-    mutationFn: () => api.post("/auth/logout", { refreshToken }),
-    onSuccess: () => {
-      clearAuth();
-    },
-    onError: () => {
-      // Force clear client session even if backend logout request fails
-      clearAuth();
-    }
-  });
-
-  const { data: dashboardData } = useQuery({
-    queryKey: ["workspaceDashboard", workspaceId],
-    queryFn: () => api.get(`/workspaces/${workspaceId}/dashboard`).then((res) => res.data.dashboard),
-    enabled: !!workspaceId,
-  });
-
-  const { data: members = [] } = useQuery({
-    queryKey: ["workspaceMembers", workspaceId],
-    queryFn: () => api.get(`/workspaces/${workspaceId}/members`).then((res) => res.data.members),
-    enabled: !!workspaceId,
-  });
-
-  const [presenceMap, setPresenceMap] = useState({});
-
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket || !workspaceId) return;
-
-    socket.emit("joinWorkspace", workspaceId);
-
-    const handlePresenceUpdate = (data) => {
-      setPresenceMap((prev) => ({
-        ...prev,
-        [data.userId]: data,
-      }));
-    };
-
-    const handleUserLeave = (data) => {
-      setPresenceMap((prev) => {
-        const copy = { ...prev };
-        delete copy[data.userId];
-        return copy;
-      });
-    };
-
-    socket.on("presence:update", handlePresenceUpdate);
-    socket.on("user:join", handlePresenceUpdate);
-    socket.on("user:leave", handleUserLeave);
-
-    return () => {
-      socket.emit("leaveWorkspace", workspaceId);
-      socket.off("presence:update", handlePresenceUpdate);
-      socket.off("user:join", handlePresenceUpdate);
-      socket.off("user:leave", handleUserLeave);
-    };
-  }, [workspaceId]);
-
-  const activeMembersList = Object.values(presenceMap).map((presence) => {
-    const member = Array.isArray(members) ? members.find((m) => m.userId === presence.userId || m.user?.id === presence.userId) : null;
-    return {
-      userId: presence.userId,
-      name: member?.user?.username || presence.userId.substring(0, 8),
-      status: presence.currentPage || "Online",
-      color: "bg-emerald-500",
-    };
-  });
-
+  // Channel list — merge real with defaults
   const defaultChannels = [
     { id: "gen", name: "general", slug: "general" },
     { id: "ann", name: "announcements", slug: "announcements" },
-    { id: "back", name: "backend", slug: "backend" },
-    { id: "front", name: "frontend", slug: "frontend" },
-    { id: "des", name: "design", slug: "design" },
-    { id: "rand", name: "random", slug: "random" },
   ];
-
   const mergedChannels = [...channels];
   defaultChannels.forEach((dc) => {
-    if (!mergedChannels.some((c) => c.slug === dc.slug)) {
-      mergedChannels.push(dc);
-    }
+    if (!mergedChannels.some((c) => c.slug === dc.slug)) mergedChannels.push(dc);
   });
 
-  const navigationGroups = [
-    {
-      title: "Workspace",
-      items: [
-        {
-          name: "Home",
-          path: "",
-          exact: true,
-          icon: (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-            </svg>
-          ),
-        }
-      ]
-    },
-    {
-      title: "Communication",
-      items: [
-        {
-          name: "Chat Feed",
-          path: "/chat",
-          icon: (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a.596.596 0 0 1-.548-.548 5.86 5.86 0 0 1 .98-3.189A8.11 8.11 0 0 1 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-            </svg>
-          ),
-        }
-      ],
-      isChannelList: true
-    },
-    {
-      title: "Work",
-      items: [
-        {
-          name: "Tasks Board",
-          path: "/tasks",
-          icon: (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.375M9 18h3.375m1.875-12h7.5M14.25 9h7.5m-7.5 3h7.5m-7.5 3h7.5m-7.5 3h7.5M3.75 6H7.5M3.75 9H7.5M3.75 12H7.5m-3.75 3H7.5m-3.75 3H7.5M21 3H3a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1Z" />
-            </svg>
-          ),
-        }
-      ]
-    },
-    {
-      title: "Knowledge",
-      items: [
-        {
-          name: "Documents",
-          path: "/docs",
-          icon: (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-            </svg>
-          ),
-        }
-      ]
-    },
-    {
-      title: "Workspace Settings",
-      items: [
-        {
-          name: "Settings & Invites",
-          path: "/settings",
-          icon: (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-            </svg>
-          ),
-        }
-      ]
-    }
-  ];
+  // Nav item helper component (inline)
+  const NavItem = ({ path, icon, label, exact = false }) => {
+    const active = isActive(path, exact);
+    return (
+      <Link
+        to={`/workspaces/${workspaceId}${path}`}
+        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 cursor-pointer ${
+          active
+            ? "bg-accent text-primary font-semibold"
+            : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 font-medium"
+        } ${isSidebarCollapsed ? "justify-center px-2" : ""}`}
+      >
+        <span className={`shrink-0 ${active ? "text-primary" : "text-zinc-400"}`}>{icon}</span>
+        {!isSidebarCollapsed && <span className="truncate">{label}</span>}
+      </Link>
+    );
+  };
 
-  const currentOrg = orgs[0] || { id: "1", name: "A-Collab Org", slug: "acollab-org" };
-
-  const { data: workspaces = [] } = useQuery({
-    queryKey: ["workspaces", currentOrg?.id],
-    queryFn: () => api.get(`/organizations/${currentOrg?.id}/workspaces`).then((res) => res.data.workspaces),
-    enabled: !!currentOrg?.id,
-  });
-
-  const activeWorkspace = workspaces.find((w) => w.id === workspaceId) || workspaces[0] || { id: "1", name: "Acme Technologies" };
+  const SectionLabel = ({ children }) =>
+    isSidebarCollapsed ? null : (
+      <div className="px-3 pt-4 pb-1">
+        <span className="text-xs font-semibold text-zinc-400 tracking-wide">{children}</span>
+      </div>
+    );
 
   return (
     <>
       <div
-        className={`h-screen bg-card border-r border-border flex flex-col justify-between transition-all duration-300 fixed lg:static inset-y-0 left-0 z-40 select-none ${
-          isSidebarCollapsed ? "-translate-x-full lg:translate-x-0 lg:w-16" : "translate-x-0 lg:w-56"
+        className={`h-screen bg-white border-r border-border flex flex-col transition-all duration-300 fixed lg:static inset-y-0 left-0 z-40 select-none ${
+          isSidebarCollapsed ? "-translate-x-full lg:translate-x-0 lg:w-[60px]" : "translate-x-0 lg:w-[240px]"
         }`}
       >
-        {/* Top Header & Switcher */}
-        <div className="space-y-5 pt-5 px-3 relative overflow-y-auto no-scrollbar flex-1">
-          <div className="flex items-center justify-between">
-            {!isSidebarCollapsed ? (
-              <div className="relative w-full">
-                <button
-                  onClick={() => setIsOrgDropdownOpen(!isOrgDropdownOpen)}
-                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-zinc-100/80 w-full text-left transition-colors cursor-pointer border border-border bg-background"
-                >
-                  <div className="flex h-5 w-5 items-center justify-center rounded bg-primary text-white text-[10px] font-black">
-                    {activeWorkspace?.name?.substring(0, 1).toUpperCase() || "A"}
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="text-[11px] font-bold text-zinc-700 truncate">{activeWorkspace?.name}</p>
-                    <p className="text-[9px] text-zinc-400 font-semibold truncate">{currentOrg?.name}</p>
-                  </div>
-                  <svg xmlns="http://www.w3.org/2050/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-zinc-500">
-                    <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                  </svg>
-                </button>
-
-                {isOrgDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden py-1 divide-y divide-border">
-                    {/* Workspaces List Section */}
-                    <div className="py-1">
-                      <div className="px-2.5 py-0.5 text-[8px] font-bold text-zinc-400 uppercase tracking-wider select-none">
-                        Workspaces
-                      </div>
-                      {workspaces.map((w) => (
-                        <Link
-                          key={w.id}
-                          to={`/workspaces/${w.id}`}
-                          onClick={() => setIsOrgDropdownOpen(false)}
-                          className={`w-full block px-2.5 py-1 text-[11px] text-left hover:bg-zinc-50 transition-colors font-bold ${
-                            w.id === workspaceId ? "text-primary bg-primary/5" : "text-zinc-650 hover:text-zinc-900"
-                          }`}
-                        >
-                          {w.name}
-                        </Link>
-                      ))}
-                      <Link
-                        to="/create-organization"
-                        onClick={() => setIsOrgDropdownOpen(false)}
-                        className="w-full block px-2.5 py-1 text-[10px] text-left text-zinc-450 hover:text-primary hover:bg-zinc-50 font-bold transition-colors"
-                      >
-                        + Create Workspace
-                      </Link>
-                    </div>
-
-                    {/* Organizations List Section */}
-                    <div className="py-1">
-                      <div className="px-2.5 py-0.5 text-[8px] font-bold text-zinc-400 uppercase tracking-wider select-none">
-                        Organizations
-                      </div>
-                      {orgs.map((org) => (
-                        <div
-                          key={org.id}
-                          className="w-full px-2.5 py-1 text-[11px] text-left text-zinc-500 font-semibold truncate select-none"
-                        >
-                          {org.name}
-                        </div>
-                      ))}
-                      <Link
-                        to="/create-organization"
-                        onClick={() => setIsOrgDropdownOpen(false)}
-                        className="w-full block px-2.5 py-1 text-[10px] text-left text-zinc-450 hover:text-primary hover:bg-zinc-50 font-bold transition-colors"
-                      >
-                        + Switch Organization
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
+        {/* ── Workspace Switcher Header ── */}
+        <div className="shrink-0 p-3 border-b border-border">
+          {!isSidebarCollapsed ? (
+            <div className="relative">
               <button
-                onClick={toggleSidebar}
-                className="mx-auto flex h-6 w-6 items-center justify-center rounded bg-primary text-white text-xs font-black shadow-sm cursor-pointer"
+                onClick={() => setIsOrgDropdownOpen(!isOrgDropdownOpen)}
+                className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg hover:bg-zinc-50 transition-colors cursor-pointer border border-transparent hover:border-zinc-200"
               >
-                {activeWorkspace?.name?.substring(0, 1).toUpperCase() || "A"}
+                {/* Brand logo */}
+                <div className="h-7 w-7 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-white">
+                  <img src={aCollabLogo} alt="A-Collab" className="h-7 w-7 object-contain" />
+                </div>
+                <div className="flex-1 text-left overflow-hidden">
+                  <p className="text-sm font-semibold text-zinc-900 truncate">{activeWorkspace?.name || "Workspace"}</p>
+                  <p className="text-xs text-zinc-400 truncate">{currentOrg?.name || "Organization"}</p>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-zinc-400 shrink-0">
+                  <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                </svg>
               </button>
-            )}
-          </div>
 
-          {/* Grouped Sidebar Navigation */}
-          <div className="space-y-4 pt-1">
-            {navigationGroups.map((group, gIdx) => (
-              <div key={gIdx} className="space-y-1">
-                {/* Section Title */}
-                {!isSidebarCollapsed && (
-                  <div className="px-3 text-[9px] font-bold text-zinc-600 uppercase tracking-widest select-none">
-                    {group.title}
+              {isOrgDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded-xl shadow-lg z-50 py-2 overflow-hidden">
+                  <div className="px-3 py-1 text-xs font-medium text-zinc-400">Workspaces</div>
+                  {workspaces.map((w) => (
+                    <Link
+                      key={w.id}
+                      to={`/workspaces/${w.id}`}
+                      onClick={() => setIsOrgDropdownOpen(false)}
+                      className={`flex items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-50 transition-colors ${w.id === workspaceId ? "text-primary font-semibold" : "text-zinc-700"}`}
+                    >
+                      <div className={`h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center ${w.id === workspaceId ? "bg-accent text-primary" : "bg-zinc-100 text-zinc-500"}`}>
+                        {w.name.charAt(0).toUpperCase()}
+                      </div>
+                      {w.name}
+                    </Link>
+                  ))}
+                  <div className="border-t border-border mt-1 pt-1">
+                    <Link
+                      to="/create-org"
+                      onClick={() => setIsOrgDropdownOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-500 hover:text-primary hover:bg-zinc-50 transition-colors"
+                    >
+                      <span className="text-base">+</span> New workspace
+                    </Link>
                   </div>
-                )}
-                
-                {/* Nav Links mapping */}
-                <nav className="space-y-0.5">
-                  {group.items.map((item) => {
-                    const isActive = item.exact 
-                      ? location.pathname === `/workspaces/${workspaceId || "1"}` || location.pathname === `/workspaces/${workspaceId || "1"}/`
-                      : location.pathname.endsWith(item.path) || (item.path === "/chat" && location.pathname.includes("/channels/"));
-                      
-                    return (
-                      <Link
-                        key={item.name}
-                        to={`/workspaces/${workspaceId || "1"}${item.path}`}
-                        className={`flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                          isActive
-                            ? "bg-zinc-900/35 text-white border border-zinc-900"
-                            : "text-zinc-555 hover:bg-zinc-900/20 hover:text-zinc-200 border border-transparent"
-                        } ${isSidebarCollapsed ? "justify-center" : ""}`}
-                      >
-                        <span className="text-zinc-500 shrink-0">{item.icon}</span>
-                        {!isSidebarCollapsed && (
-                          <span className="flex-1 truncate">{item.name}</span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </nav>
-
-                {/* If the group contains channels list, render it inside the group */}
-                {group.isChannelList && !isSidebarCollapsed && (
-                  <div className="pl-3.5 pr-2 pt-1.5 space-y-1">
-                    <div className="flex items-center justify-between text-[9px] font-bold text-zinc-650 uppercase tracking-widest select-none">
-                      <span>Channels</span>
-                      <button
-                        onClick={() => setIsChannelModalOpen(true)}
-                        className="hover:text-zinc-250 transition-colors cursor-pointer"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-2.8 h-2.8">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="space-y-0.5 pt-0.5">
-                      {mergedChannels.map((channel) => {
-                        const isActive = location.pathname.endsWith(`/channels/${channel.slug}`);
-                        return (
-                          <Link
-                            key={channel.id}
-                            to={`/workspaces/${workspaceId || "1"}/channels/${channel.slug}`}
-                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                              isActive
-                                ? "bg-zinc-900/35 text-white border border-zinc-900"
-                                : "text-zinc-555 hover:bg-zinc-900/20 hover:text-zinc-200 border border-transparent"
-                            }`}
-                          >
-                            <span className="text-zinc-600 font-medium shrink-0">#</span>
-                            <span className="flex-1 truncate">{channel.name}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Workspace Telemetry Dashboard Stats */}
-          {!isSidebarCollapsed && (
-            <div className="bg-zinc-950/20 border border-zinc-900/80 rounded-xl p-3.5 space-y-3.5 animate-in fade-in duration-200 select-none">
-              <div className="flex items-center justify-between text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
-                <span>WORKSPACE METRICS</span>
-                <span className="flex h-1.5 w-1.5 relative shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-450 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-zinc-950/30 border border-zinc-900 rounded-lg p-2">
-                  <p className="text-[8px] text-zinc-650 font-bold uppercase tracking-wider">TASKS</p>
-                  <p className="text-xs font-bold text-zinc-300 mt-0.5">{dashboardData?.cards?.openTasks ?? 0}</p>
                 </div>
-                <div className="bg-zinc-950/30 border border-zinc-900 rounded-lg p-2">
-                  <p className="text-[8px] text-zinc-650 font-bold uppercase tracking-wider">UNREAD</p>
-                  <p className="text-xs font-bold text-zinc-300 mt-0.5">{dashboardData?.cards?.unreadMessages ?? 0}</p>
-                </div>
-              </div>
+              )}
             </div>
-          )}
-
-          {/* Personal Scratchpad / Notepad */}
-          {!isSidebarCollapsed && (
-            <div className="space-y-2 pt-2 animate-in fade-in duration-200">
-              <div className="text-[9px] font-bold text-zinc-650 uppercase tracking-widest px-3">
-                Quick Scratchpad
-              </div>
-              <div className="px-3 pb-1">
-                <textarea
-                  placeholder="Jot down a quick thought..."
-                  value={scratchpadText}
-                  onChange={(e) => {
-                    setScratchpadText(e.target.value);
-                    localStorage.setItem("acollab-scratchpad", e.target.value);
-                  }}
-                  className="w-full min-h-[75px] rounded-lg border border-zinc-900 bg-zinc-950/40 p-2.5 text-[10px] text-zinc-350 placeholder:text-zinc-700 outline-none focus:border-zinc-800 transition-all resize-none font-sans leading-relaxed"
-                />
-              </div>
-            </div>
+          ) : (
+            <button
+              onClick={toggleSidebar}
+              className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-white cursor-pointer overflow-hidden"
+              title={activeWorkspace?.name || "A-Collab"}
+            >
+              <img src={aCollabLogo} alt="A-Collab" className="h-8 w-8 object-contain" />
+            </button>
           )}
         </div>
 
-        {/* Bottom User Area */}
-        <div className="p-3 border-t border-zinc-900/60 space-y-3 flex flex-col shrink-0">
-          {/* Storage bar */}
-          {!isSidebarCollapsed ? (
-            <div className="bg-zinc-950/30 border border-zinc-900 rounded-lg p-2.5 space-y-1.5">
-              <div className="flex justify-between items-center text-[9px] font-bold text-zinc-600">
-                <span>STORAGE</span>
-                <span>85% FULL</span>
-              </div>
-              <div className="h-1 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-900">
-                <div className="h-full bg-white w-[85%] rounded-full" />
-              </div>
-            </div>
-          ) : (
-            <div className="mx-auto relative h-5 w-5 flex items-center justify-center cursor-pointer" title="Storage: 85% full">
-              <svg className="h-5 w-5 transform -rotate-90">
-                <circle cx="10" cy="10" r="8" stroke="rgba(63,63,70,0.4)" strokeWidth="1.5" fill="transparent" />
-                <circle cx="10" cy="10" r="8" stroke="#ffffff" strokeWidth="1.5" fill="transparent" strokeDasharray={50.2} strokeDashoffset={50.2 * 0.15} />
+        {/* ── Navigation ── */}
+        <div className="flex-1 overflow-y-auto no-scrollbar py-2 px-2">
+          {/* Workspace section */}
+          <SectionLabel>Workspace</SectionLabel>
+          <nav className="space-y-0.5">
+            <NavItem path="" icon={
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
               </svg>
-            </div>
-          )}
+            } label="Home" exact />
+          </nav>
 
-          {/* User Profile bar */}
-          <div className={`flex items-center ${isSidebarCollapsed ? "justify-center" : "justify-between"}`}>
-            <button
-              onClick={() => setIsProfileModalOpen(true)}
-              className="flex items-center gap-2.5 overflow-hidden text-left hover:opacity-85 transition-opacity cursor-pointer flex-1"
-            >
-              <div className="h-6 w-6 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] font-bold text-zinc-300 flex items-center justify-center relative shrink-0">
-                {user?.username?.substring(0, 2).toUpperCase() || "AD"}
-                <span className="absolute bottom-0 right-0 h-1.5 w-1.5 rounded-full bg-emerald-500 border border-zinc-950" />
-              </div>
-              {!isSidebarCollapsed && (
-                <div className="overflow-hidden">
-                  <p className="text-xs font-bold text-zinc-200 truncate">
-                    {user?.username || "Guest User"}
-                  </p>
-                  <p className="text-[9px] text-zinc-600 font-bold uppercase">{user?.status || "Online"}</p>
-                </div>
-              )}
-            </button>
+          {/* Communication section */}
+          <SectionLabel>Communication</SectionLabel>
+          <nav className="space-y-0.5">
+            <NavItem path="/chat" icon={
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+              </svg>
+            } label="Chat" />
 
+            {/* Channels sub-list */}
             {!isSidebarCollapsed && (
-              <button
-                onClick={toggleSidebar}
-                className="text-zinc-600 hover:text-zinc-200 transition-colors cursor-pointer"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3.5 h-3.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                </svg>
-              </button>
+              <div className="pl-4 mt-1 space-y-0.5">
+                <div className="flex items-center justify-between px-2 py-1">
+                  <span className="text-xs text-zinc-400 font-medium">Channels</span>
+                  <button
+                    onClick={() => setIsChannelModalOpen(true)}
+                    className="text-zinc-400 hover:text-primary transition-colors cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3 h-3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                  </button>
+                </div>
+                {mergedChannels.slice(0, 6).map((channel) => (
+                  <Link
+                    key={channel.id}
+                    to={`/workspaces/${workspaceId}/channels/${channel.slug}`}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-all cursor-pointer ${
+                      isChannelActive(channel.slug)
+                        ? "bg-accent text-primary font-semibold"
+                        : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+                    }`}
+                  >
+                    <span className="text-zinc-400 text-xs font-medium">#</span>
+                    <span className="truncate">{channel.name}</span>
+                  </Link>
+                ))}
+              </div>
             )}
-          </div>
+          </nav>
+
+          {/* Work section */}
+          <SectionLabel>Work</SectionLabel>
+          <nav className="space-y-0.5">
+            <NavItem path="/tasks" icon={
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5 3 12l3.75 4.5m6.75-9L17.25 12l-3.75 4.5m-3.375.75 1.875-9" />
+              </svg>
+            } label="Tasks" />
+            <NavItem path="/calendar" icon={
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+              </svg>
+            } label="Calendar" />
+          </nav>
+
+          {/* Knowledge section */}
+          <SectionLabel>Knowledge</SectionLabel>
+          <nav className="space-y-0.5">
+            <NavItem path="/docs" icon={
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+              </svg>
+            } label="Documents" />
+          </nav>
+
+          {/* Team section */}
+          <SectionLabel>Team</SectionLabel>
+          <nav className="space-y-0.5">
+            <NavItem path="/members" icon={
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+              </svg>
+            } label="Members" />
+          </nav>
+
+          {/* Settings section */}
+          <SectionLabel>Settings</SectionLabel>
+          <nav className="space-y-0.5">
+            <NavItem path="/settings" icon={
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            } label="Settings" />
+          </nav>
+        </div>
+
+        {/* ── Bottom user card ── */}
+        <div className="shrink-0 p-3 border-t border-border">
+          <button
+            onClick={() => setIsProfileModalOpen(true)}
+            className={`flex items-center gap-2.5 w-full rounded-lg p-2 hover:bg-zinc-50 transition-colors cursor-pointer ${isSidebarCollapsed ? "justify-center" : ""}`}
+          >
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="avatar" className="h-8 w-8 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                {user?.username?.substring(0, 2).toUpperCase() || "ME"}
+              </div>
+            )}
+            {!isSidebarCollapsed && (
+              <div className="flex-1 text-left overflow-hidden">
+                <p className="text-sm font-semibold text-zinc-900 truncate">{user?.username || "Guest"}</p>
+                <p className="text-xs text-zinc-400 truncate">{user?.email || "member"}</p>
+              </div>
+            )}
+            {!isSidebarCollapsed && (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5 text-zinc-400 shrink-0">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
+              </svg>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* User Profile & Account Settings Modal */}
+      {/* ══ Profile Settings Modal ══ */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-xl border border-zinc-900 bg-zinc-950 p-6 space-y-5 shadow-2xl relative animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-border shadow-2xl animate-in zoom-in-95 duration-150 overflow-hidden">
             {/* Header */}
-            <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
-              <div className="flex items-center gap-2 select-none">
-                <div className="h-5 w-5 rounded-full bg-zinc-900 border border-zinc-800 text-[8px] font-bold text-zinc-400 flex items-center justify-center uppercase shrink-0">
-                  {user?.username?.substring(0, 2).toUpperCase()}
-                </div>
-                <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-widest">
-                  Account Settings
-                </h3>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div>
+                <h3 className="text-base font-semibold text-zinc-900">Account Settings</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">Manage your profile and security</p>
               </div>
-              <button
-                onClick={() => setIsProfileModalOpen(false)}
-                className="text-zinc-650 hover:text-white cursor-pointer"
-              >
+              <button onClick={() => setIsProfileModalOpen(false)} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Tab switchers */}
-            <div className="flex border-b border-zinc-900/60 pb-1 text-[10px] font-bold tracking-widest text-zinc-550 uppercase select-none">
-              <button
-                onClick={() => setActiveTab("profile")}
-                className={`pb-1 px-3 border-b-2 transition-all cursor-pointer ${
-                  activeTab === "profile" ? "border-white text-white" : "border-transparent hover:text-zinc-350"
-                }`}
-              >
-                Profile Info
-              </button>
-              <button
-                onClick={() => setActiveTab("account")}
-                className={`pb-1 px-3 border-b-2 transition-all cursor-pointer ${
-                  activeTab === "account" ? "border-white text-white" : "border-transparent hover:text-zinc-355"
-                }`}
-              >
-                Security & Status
-              </button>
+            {/* Tabs */}
+            <div className="flex border-b border-border px-6">
+              {["profile", "security"].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setProfileTab(tab)}
+                  className={`px-1 py-3 mr-6 text-sm font-medium border-b-2 transition-all cursor-pointer capitalize ${
+                    profileTab === tab ? "border-primary text-primary" : "border-transparent text-zinc-500 hover:text-zinc-700"
+                  }`}
+                >
+                  {tab === "profile" ? "Profile" : "Security"}
+                </button>
+              ))}
             </div>
 
-            {/* Tabs content container */}
-            <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-4 no-scrollbar">
-              {activeTab === "profile" ? (
+            {/* Tab content */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4 no-scrollbar">
+              {profileTab === "profile" ? (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    updateProfileMutation.mutate({
-                      username: profileUsername,
-                      firstName: profileFirstName,
-                      lastName: profileLastName,
-                      bio: profileBio,
-                      avatarUrl: profileAvatarUrl,
-                    });
+                    updateProfileMutation.mutate({ username: profileUsername, firstName: profileFirstName, lastName: profileLastName, bio: profileBio, avatarUrl: profileAvatarUrl });
                   }}
                   className="space-y-4"
                 >
-                  <FormField
-                    label="Username"
-                    name="username"
-                    value={profileUsername}
-                    onChange={(e) => setProfileUsername(e.target.value)}
-                  />
-
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1.5">Username</label>
+                    <input className="ac-input" value={profileUsername} onChange={(e) => setProfileUsername(e.target.value)} placeholder="username" />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      label="First Name"
-                      name="firstName"
-                      value={profileFirstName}
-                      onChange={(e) => setProfileFirstName(e.target.value)}
-                    />
-                    <FormField
-                      label="Last Name"
-                      name="lastName"
-                      value={profileLastName}
-                      onChange={(e) => setProfileLastName(e.target.value)}
-                    />
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-700 mb-1.5">First Name</label>
+                      <input className="ac-input" value={profileFirstName} onChange={(e) => setProfileFirstName(e.target.value)} placeholder="First" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-700 mb-1.5">Last Name</label>
+                      <input className="ac-input" value={profileLastName} onChange={(e) => setProfileLastName(e.target.value)} placeholder="Last" />
+                    </div>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block select-none">Bio</label>
-                    <textarea
-                      placeholder="Tell us about yourself..."
-                      value={profileBio}
-                      onChange={(e) => setProfileBio(e.target.value)}
-                      className="w-full min-h-[60px] rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 py-2 text-xs text-foreground placeholder:text-zinc-600/70 outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all resize-none"
-                    />
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1.5">Bio</label>
+                    <textarea className="ac-textarea min-h-[80px]" value={profileBio} onChange={(e) => setProfileBio(e.target.value)} placeholder="Tell your team about yourself..." />
                   </div>
-
-                  <FormField
-                    label="Avatar URL"
-                    name="avatarUrl"
-                    value={profileAvatarUrl}
-                    onChange={(e) => setProfileAvatarUrl(e.target.value)}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={updateProfileMutation.isPending}
-                    className="w-full h-8.5 rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 transition-all cursor-pointer"
-                  >
-                    {updateProfileMutation.isPending ? "Saving..." : "Save Profile Details"}
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1.5">Avatar URL</label>
+                    <input className="ac-input" value={profileAvatarUrl} onChange={(e) => setProfileAvatarUrl(e.target.value)} placeholder="https://..." />
+                  </div>
+                  <button type="submit" disabled={updateProfileMutation.isPending} className="btn-primary w-full">
+                    {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
                   </button>
                 </form>
               ) : (
-                <div className="space-y-5">
-                  {/* Status update */}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      updateProfileMutation.mutate({ status: profileStatus });
-                    }}
-                    className="space-y-3.5 border-b border-zinc-900 pb-4"
-                  >
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block select-none">Presence Status</label>
-                      <select
-                        value={profileStatus}
-                        onChange={(e) => setProfileStatus(e.target.value)}
-                        className="w-full h-8.5 rounded-lg border border-zinc-900 bg-zinc-950/40 px-2 text-xs text-zinc-350 outline-none focus:border-zinc-700 cursor-pointer"
-                      >
-                        <option value="Online">🟢 Online</option>
-                        <option value="Away">🟡 Away</option>
-                        <option value="Do Not Disturb">🔴 Do Not Disturb</option>
-                        <option value="Offline">⚫ Invisible</option>
-                      </select>
-                    </div>
-
+                <div className="space-y-6">
+                  {/* Status */}
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1.5">Presence Status</label>
+                    <select className="ac-select" value={profileStatus} onChange={(e) => setProfileStatus(e.target.value)}>
+                      <option value="Online">🟢 Online</option>
+                      <option value="Away">🟡 Away</option>
+                      <option value="Do Not Disturb">🔴 Do Not Disturb</option>
+                      <option value="Offline">⚫ Invisible</option>
+                    </select>
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={() => updateProfileMutation.mutate({ status: profileStatus })}
                       disabled={updateProfileMutation.isPending}
-                      className="w-full h-8 px-3 rounded-lg border border-zinc-900 hover:bg-zinc-900/30 text-xs font-semibold text-zinc-300 transition-all cursor-pointer"
+                      className="btn-secondary w-full mt-3"
                     >
                       Update Status
                     </button>
-                  </form>
+                  </div>
 
-                  {/* Password Change */}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (newPassword !== confirmPassword) {
-                        alert("Passwords do not match.");
-                        return;
-                      }
-                      changePasswordMutation.mutate({ oldPassword, newPassword });
-                    }}
-                    className="space-y-4 border-b border-zinc-900 pb-4"
-                  >
-                    <h4 className="text-[10px] font-bold text-zinc-450 uppercase tracking-widest select-none">Change Password</h4>
-                    <FormField
-                      label="Current Password"
-                      name="oldPassword"
-                      type="password"
-                      placeholder="••••••••"
-                      value={oldPassword}
-                      onChange={(e) => setOldPassword(e.target.value)}
-                    />
-                    <FormField
-                      label="New Password"
-                      name="newPassword"
-                      type="password"
-                      placeholder="••••••••"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                    />
-                    <FormField
-                      label="Confirm New Password"
-                      name="confirmPassword"
-                      type="password"
-                      placeholder="••••••••"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                    />
-
-                    <button
-                      type="submit"
-                      disabled={changePasswordMutation.isPending}
-                      className="w-full h-8 px-3 rounded-lg border border-zinc-900 hover:bg-zinc-900/30 text-xs font-semibold text-zinc-300 transition-all cursor-pointer"
-                    >
-                      {changePasswordMutation.isPending ? "Updating..." : "Change Password"}
-                    </button>
-                  </form>
-
-                  {/* Sign Out Warning Area */}
-                  <div className="pt-2 select-none">
-                    <button
-                      onClick={() => {
-                        if (confirm("Are you sure you want to sign out?")) {
-                          logoutMutation.mutate();
-                        }
+                  {/* Change Password */}
+                  <div className="border-t border-border pt-5">
+                    <h4 className="text-sm font-semibold text-zinc-900 mb-4">Change Password</h4>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (newPassword !== confirmPassword) { alert("Passwords do not match."); return; }
+                        changePasswordMutation.mutate({ oldPassword, newPassword });
                       }}
-                      disabled={logoutMutation.isPending}
-                      className="w-full h-9 rounded-lg bg-red-950/20 border border-red-900/30 hover:bg-red-900/25 text-xs font-bold text-red-400 hover:text-red-300 transition-all cursor-pointer"
+                      className="space-y-3"
                     >
-                      {logoutMutation.isPending ? "Signing out..." : "Sign Out of A-Collab"}
+                      <input type="password" className="ac-input" placeholder="Current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
+                      <input type="password" className="ac-input" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                      <input type="password" className="ac-input" placeholder="Confirm new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                      <button type="submit" disabled={changePasswordMutation.isPending} className="btn-secondary w-full">
+                        {changePasswordMutation.isPending ? "Updating..." : "Change Password"}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Danger zone */}
+                  <div className="border-t border-border pt-4">
+                    <button
+                      onClick={() => { if (confirm("Sign out of A-Collab?")) logoutMutation.mutate(); }}
+                      disabled={logoutMutation.isPending}
+                      className="btn-danger w-full"
+                    >
+                      {logoutMutation.isPending ? "Signing out..." : "Sign out"}
                     </button>
                   </div>
                 </div>
@@ -766,78 +473,41 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Create Channel Modal Overlay */}
+      {/* ══ Create Channel Modal ══ */}
       {isChannelModalOpen && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-xl border border-zinc-900 bg-zinc-950 p-6 space-y-4 shadow-2xl relative animate-in zoom-in-95 duration-150">
-            <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
-              <h3 className="text-sm font-bold text-zinc-200">Create Channel</h3>
-              <button
-                onClick={() => setIsChannelModalOpen(false)}
-                className="text-zinc-650 hover:text-white cursor-pointer"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-border shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h3 className="text-base font-semibold text-zinc-900">Create Channel</h3>
+              <button onClick={() => setIsChannelModalOpen(false)} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-
-            <form onSubmit={handleCreateChannel} className="space-y-4">
-              <FormField
-                label="Channel Name"
-                name="name"
-                placeholder="e.g. general"
-                value={newChannelName}
-                onChange={handleChannelNameChange}
-                register={null} // Controlled field manually handled
-              />
-
-              <FormField
-                label="Slug"
-                name="slug"
-                placeholder="e.g. general-channel"
-                value={newChannelSlug}
-                onChange={(e) => setNewChannelSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-"))}
-                register={null} // Controlled field manually handled
-                inputClassName="font-mono"
-              />
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block">Description (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="What is this channel about..."
-                  value={newChannelDesc}
-                  onChange={(e) => setNewChannelDesc(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 text-xs text-foreground placeholder:text-zinc-600/70 outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800"
-                />
+            <form onSubmit={handleCreateChannel} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Channel Name</label>
+                <input className="ac-input" placeholder="e.g. design-team" value={newChannelName} onChange={handleChannelNameChange} required />
               </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block">Type</label>
-                <select
-                  value={newChannelType}
-                  onChange={(e) => setNewChannelType(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-zinc-900 bg-zinc-950/40 px-2 text-xs text-zinc-300 outline-none focus:border-zinc-700 cursor-pointer"
-                >
-                  <option value="PUBLIC">Public (everyone in workspace can view)</option>
-                  <option value="PRIVATE">Private (invite-only)</option>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Slug</label>
+                <input className="ac-input font-mono" placeholder="design-team" value={newChannelSlug} onChange={(e) => setNewChannelSlug(e.target.value)} required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Description <span className="text-zinc-400 font-normal">(optional)</span></label>
+                <input className="ac-input" placeholder="What's this channel for?" value={newChannelDesc} onChange={(e) => setNewChannelDesc(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Visibility</label>
+                <select className="ac-select" value={newChannelType} onChange={(e) => setNewChannelType(e.target.value)}>
+                  <option value="PUBLIC">Public — anyone in workspace</option>
+                  <option value="PRIVATE">Private — invite only</option>
                 </select>
               </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-900">
-                <button
-                  type="button"
-                  onClick={() => setIsChannelModalOpen(false)}
-                  className="h-9 px-4 rounded-lg border border-zinc-900 hover:bg-zinc-900/30 text-xs font-semibold text-zinc-500 hover:text-zinc-300 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createChannelMutation.isPending}
-                  className="h-9 px-4 rounded-lg bg-white text-xs font-semibold text-black hover:bg-zinc-200 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                >
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsChannelModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" disabled={createChannelMutation.isPending} className="btn-primary flex-1">
                   {createChannelMutation.isPending ? "Creating..." : "Create Channel"}
                 </button>
               </div>

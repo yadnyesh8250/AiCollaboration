@@ -11,43 +11,39 @@ export default function WorkspaceHome() {
   const queryClient = useQueryClient();
   const { activeRightPanel, setRightPanel } = useUIStore();
 
-  // Dynamic Greeting based on time
-  const [greeting, setGreeting] = useState("Welcome");
+  // Greeting
+  const [greeting, setGreeting] = useState("Welcome back");
   useEffect(() => {
     const hrs = new Date().getHours();
-    if (hrs < 12) setGreeting("Good Morning");
-    else if (hrs < 18) setGreeting("Good Afternoon");
-    else setGreeting("Good Evening");
+    if (hrs < 12) setGreeting("Good morning");
+    else if (hrs < 18) setGreeting("Good afternoon");
+    else setGreeting("Good evening");
   }, []);
 
-  // Quick Action Modal states
+  // Modal states
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
-  
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDesc, setTaskDesc] = useState("");
   const [taskPriority, setTaskPriority] = useState("MEDIUM");
-  
   const [docTitle, setDocTitle] = useState("");
 
-  // ───────────────────────────────────────────────────────────────────────────
   // Queries
-  // ───────────────────────────────────────────────────────────────────────────
   const { data: members = [] } = useQuery({
     queryKey: ["workspaceMembers", workspaceId],
-    queryFn: () => api.get(`/workspaces/${workspaceId}/members`).then((res) => res.data.members),
+    queryFn: () => api.get(`/workspaces/${workspaceId}/members`).then((r) => r.data.members),
     enabled: !!workspaceId,
   });
 
-  const { data: tasks = [] } = useQuery({
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["workspaceTasks", workspaceId],
-    queryFn: () => api.get(`/workspaces/${workspaceId}/tasks`).then((res) => res.data.tasks),
+    queryFn: () => api.get(`/workspaces/${workspaceId}/tasks`).then((r) => r.data.tasks),
     enabled: !!workspaceId,
   });
 
   const { data: docs = [] } = useQuery({
     queryKey: ["workspaceDocsList", workspaceId],
-    queryFn: () => api.get(`/workspaces/${workspaceId}/documents`).then((res) => res.data.documents),
+    queryFn: () => api.get(`/workspaces/${workspaceId}/documents`).then((r) => r.data.documents),
     enabled: !!workspaceId,
   });
 
@@ -55,379 +51,434 @@ export default function WorkspaceHome() {
   const createTaskMutation = useMutation({
     mutationFn: (data) => api.post(`/workspaces/${workspaceId}/tasks`, data),
     onSuccess: () => {
-      setIsTaskModalOpen(false);
-      setTaskTitle("");
-      setTaskDesc("");
-      setTaskPriority("MEDIUM");
+      setIsTaskModalOpen(false); setTaskTitle(""); setTaskDesc(""); setTaskPriority("MEDIUM");
       queryClient.invalidateQueries({ queryKey: ["workspaceTasks", workspaceId] });
-    }
+    },
   });
 
   const createDocMutation = useMutation({
     mutationFn: (data) => api.post(`/workspaces/${workspaceId}/documents`, data),
     onSuccess: () => {
-      setIsDocModalOpen(false);
-      setDocTitle("");
+      setIsDocModalOpen(false); setDocTitle("");
       queryClient.invalidateQueries({ queryKey: ["workspaceDocsList", workspaceId] });
-    }
+    },
   });
 
   const handleCreateTask = (e) => {
     e.preventDefault();
     if (!taskTitle.trim()) return;
-    createTaskMutation.mutate({
-      title: taskTitle.trim(),
-      description: taskDesc.trim(),
-      priority: taskPriority,
-      status: "TODO",
-      position: tasks.length * 1000 + 1000
-    });
+    createTaskMutation.mutate({ title: taskTitle.trim(), description: taskDesc.trim(), priority: taskPriority, status: "TODO" });
   };
 
   const handleCreateDoc = (e) => {
     e.preventDefault();
     if (!docTitle.trim()) return;
-    createDocMutation.mutate({
-      title: docTitle.trim(),
-      visibility: "WORKSPACE"
-    });
+    createDocMutation.mutate({ title: docTitle.trim(), visibility: "WORKSPACE" });
   };
 
-  // Calculate onboarding milestones
+  // Onboarding milestones
   const milestones = [
-    { label: "Invite teammates", description: "Bring in collaborators or employees", complete: members.length > 1 },
-    { label: "Create your first task", description: "Populate the workspace kanban backlog", complete: tasks.length > 0 },
-    { label: "Send first message", description: "Query AI or drop a text in #general", complete: true },
-    { label: "Create first document", description: "Write notes or wikis in Notion docs", complete: docs.length > 0 },
+    { label: "Invite teammates", desc: "Add collaborators to your workspace", done: members.length > 1 },
+    { label: "Create first task", desc: "Populate the project board", done: tasks.length > 0 },
+    { label: "Write a document", desc: "Start your team knowledge base", done: docs.length > 0 },
+    { label: "Open AI Copilot", desc: "Let CollabAI help your team work", done: activeRightPanel === "AI_COPILOT" },
+  ];
+  const completed = milestones.filter((m) => m.done).length;
+  const progress = Math.round((completed / milestones.length) * 100);
+
+  // Stat cards
+  const stats = [
+    { label: "Open Tasks", value: tasks.filter((t) => t.status !== "DONE").length, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", icon: "📋" },
+    { label: "In Progress", value: tasks.filter((t) => t.status === "IN_PROGRESS").length, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200", icon: "⚡" },
+    { label: "Completed", value: tasks.filter((t) => t.status === "DONE").length, color: "text-green-600", bg: "bg-green-50", border: "border-green-200", icon: "✅" },
+    { label: "Team Size", value: members.length, color: "text-primary", bg: "bg-accent", border: "border-[#0F9F78]/20", icon: "👥" },
   ];
 
-  const completedCount = milestones.filter((m) => m.complete).length;
-  const progressPercent = Math.round((completedCount / milestones.length) * 100);
-
-  // Simulated active feed of events to make workspace feel alive
-  const [activeEvents, setActiveEvents] = useState([
-    { id: 1, text: "CollabAI completed summary of sprint backlog", time: "Just now", type: "ai" },
-    { id: 2, text: `${user?.username || "You"} logged into organization workspace`, time: "2m ago", type: "log" },
-    { id: 3, text: "Sarah J. moved TASK-13 'Finalize UI Design' to completed", time: "10m ago", type: "task" },
-    { id: 4, text: "DocBot generated template wiki 'Product Design Spec'", time: "1h ago", type: "docs" },
-  ]);
-
-  // Calendar mapping logic
+  // Calendar
   const getCalendarDays = () => {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = date.getMonth();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
     const totalDays = new Date(year, month + 1, 0).getDate();
-    
     const days = [];
-    // Pad previous month days
-    for (let i = 0; i < (firstDay === 0 ? 6 : firstDay - 1); i++) {
-      days.push(null);
-    }
-    // Current month days
-    for (let i = 1; i <= totalDays; i++) {
-      days.push(new Date(year, month, i));
-    }
+    for (let i = 0; i < (firstDay === 0 ? 6 : firstDay - 1); i++) days.push(null);
+    for (let i = 1; i <= totalDays; i++) days.push(new Date(year, month, i));
     return days;
   };
-
   const calendarDays = getCalendarDays();
-  const monthName = new Date().toLocaleString("default", { month: "long" });
+  const monthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+  const today = new Date().getDate();
+
+  // Recent tasks (last 5)
+  const recentTasks = [...tasks].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+
+  const priorityMap = {
+    URGENT: { label: "Urgent", className: "ac-badge-red" },
+    HIGH: { label: "High", className: "ac-badge-amber" },
+    MEDIUM: { label: "Medium", className: "ac-badge-teal" },
+    LOW: { label: "Low", className: "ac-badge-gray" },
+  };
 
   return (
-    <div className="p-6 space-y-6 h-full flex flex-col overflow-y-auto no-scrollbar selection:bg-primary/20 selection:text-white">
-      
-      {/* Header Greeting */}
-      <div className="shrink-0 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground select-none">
-            {greeting}, {user?.firstName || user?.username || "Yadnyesh"} 👋
-          </h2>
-          <p className="text-[11px] text-zinc-500 font-medium select-none">
-            Welcome to A-Collab. Redesigning workspace collaboration.
-          </p>
-        </div>
-        
-        {/* Quick Action Button Panel */}
-        <div className="flex items-center gap-2 select-none">
-          <button
-            onClick={() => setIsTaskModalOpen(true)}
-            className="h-8 px-3 rounded-lg border border-border bg-card hover:bg-zinc-50 text-[10px] font-bold text-zinc-700 cursor-pointer flex items-center gap-1.5 transition-colors"
-          >
-            <span>📋</span> Create Task
-          </button>
-          <button
-            onClick={() => setIsDocModalOpen(true)}
-            className="h-8 px-3 rounded-lg border border-border bg-card hover:bg-zinc-50 text-[10px] font-bold text-zinc-700 cursor-pointer flex items-center gap-1.5 transition-colors"
-          >
-            <span>📚</span> Write Doc
-          </button>
-          <button
-            onClick={() => setRightPanel(activeRightPanel === "AI_COPILOT" ? null : "AI_COPILOT")}
-            className="h-8 px-3 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 text-[10px] font-bold text-primary cursor-pointer flex items-center gap-1.5 transition-colors"
-          >
-            <span>🤖</span> Ask AI
-          </button>
-        </div>
-      </div>
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
-        
-        {/* Left Columns (Onboarding & Quick stats) */}
-        <div className="xl:col-span-2 space-y-5">
-          {/* Onboarding Checklist Widget */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs relative overflow-hidden">
-            <div className="absolute inset-0 bg-radial-[circle_at_top_right,rgba(99,102,241,0.015),transparent_60%] pointer-events-none" />
-            <div className="flex justify-between items-center relative z-10">
-              <div>
-                <h4 className="text-xs font-bold text-zinc-700 uppercase tracking-wider select-none">Workspace Setup Checklist</h4>
-                <p className="text-[10px] text-zinc-500 font-medium select-none">Complete these core setup milestones to unlock team workflow</p>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-mono font-bold text-primary">{progressPercent}%</span>
-                <span className="text-[9px] text-zinc-400 block font-bold select-none">COMPLETE</span>
-              </div>
-            </div>
-
-            {/* Progress bar */}
-            <div className="h-1.5 w-full bg-zinc-100 border border-zinc-200 rounded-full overflow-hidden relative z-10">
-              <div
-                className="h-full bg-primary transition-all duration-500 rounded-full"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1.5 relative z-10">
-              {milestones.map((m, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background"
-                >
-                  <div className={`h-5 w-5 rounded-full flex items-center justify-center border text-[9px] font-black shrink-0 ${
-                    m.complete 
-                      ? "bg-emerald-50 border-emerald-250 text-white"
-                      : "border-zinc-300 text-zinc-400 bg-zinc-50"
-                  }`}>
-                    {m.complete ? "✓" : idx + 1}
-                  </div>
-                  <div className="overflow-hidden">
-                    <p className="text-[11px] font-bold text-zinc-700 truncate">{m.label}</p>
-                    <p className="text-[9px] text-zinc-500 truncate">{m.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* ── Header ── */}
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-zinc-900">
+              {greeting},{" "}
+              <span className="text-primary">{user?.firstName || user?.username || "there"}</span> 👋
+            </h1>
+            <p className="text-sm text-zinc-500 mt-1">
+              Here's what's happening in your workspace today.
+            </p>
           </div>
 
-          {/* Interactive Calendar Widget */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <div className="flex justify-between items-center select-none">
-              <h4 className="text-xs font-bold text-zinc-700 uppercase tracking-widest">Calendar — {monthName}</h4>
-              <span className="text-[9px] font-bold text-zinc-400">TODAY'S TASKS SCHEDULE</span>
-            </div>
-
-            <div className="grid grid-cols-7 gap-1 text-center font-mono text-[9px] font-bold text-zinc-450 border-b border-border pb-1 select-none">
-              <span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span>
-            </div>
-            
-            <div className="grid grid-cols-7 gap-1 pt-1 font-mono text-[10px]">
-              {calendarDays.map((day, idx) => {
-                if (!day) return <div key={idx} className="h-9 bg-zinc-50/20 rounded" />;
-                
-                const isToday = day.getDate() === new Date().getDate();
-                
-                // Check if any tasks are due on this day
-                const dueTasks = tasks.filter((t) => {
-                  if (!t.dueDate) return false;
-                  const dDate = new Date(t.dueDate);
-                  return dDate.getDate() === day.getDate() && dDate.getMonth() === day.getMonth();
-                });
-
-                return (
-                  <div
-                    key={idx}
-                    className={`h-9 rounded border relative flex flex-col justify-between p-1 group/day hover:bg-zinc-150 transition-colors ${
-                      isToday ? "border-primary bg-primary/5 text-primary" : "border-border bg-background"
-                    }`}
-                  >
-                    <span className="font-bold select-none">{day.getDate()}</span>
-                    
-                    {dueTasks.length > 0 && (
-                      <div className="h-1.5 w-1.5 rounded-full bg-amber-500 mx-auto" />
-                    )}
-
-                    {/* Hover tooltip for due tasks */}
-                    {dueTasks.length > 0 && (
-                      <div className="absolute left-1/2 bottom-full mb-1 -translate-x-1/2 bg-zinc-900 text-white rounded p-2 text-[9px] leading-relaxed shadow-lg w-[140px] pointer-events-none opacity-0 group-hover/day:opacity-100 transition-opacity z-50">
-                        <p className="font-bold border-b border-zinc-800 pb-0.5 mb-1 uppercase tracking-wider text-amber-400">Due Tasks:</p>
-                        {dueTasks.map((t) => (
-                          <p key={t.id} className="truncate">• {t.title}</p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Columns (AI Summary & Telemetry events feed) */}
-        <div className="space-y-5">
-          {/* CollabAI Welcome Teammate Card */}
-          <div className="rounded-xl border border-purple-250 bg-gradient-to-br from-purple-50/25 via-card to-card p-5 space-y-4 shadow-xs relative overflow-hidden">
-            <div className="absolute inset-0 bg-radial-[circle_at_top_left,rgba(168,85,247,0.015),transparent_60%] pointer-events-none" />
-            
-            <div className="flex items-center gap-2 relative z-10 select-none">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4 text-purple-600">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
+          {/* Quick actions */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsTaskModalOpen(true)}
+              className="h-9 px-4 rounded-lg border border-border bg-white hover:bg-zinc-50 hover:border-zinc-300 text-sm font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 text-zinc-400">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
-              <span className="text-xs font-bold uppercase tracking-widest text-purple-600">CollabAI Assistant</span>
-            </div>
-
-            <div className="space-y-2 relative z-10">
-              <p className="text-xs font-bold text-zinc-650 leading-relaxed">
-                Hi, I'm CollabAI. Here is what I noticed in your workspace:
-              </p>
-              <div className="space-y-1.5 pl-1 pt-1 text-[10px] text-zinc-500 font-semibold">
-                <p className="flex items-center gap-2">
-                  <span className="text-purple-500">✦</span> Active tasks: {tasks.filter(t => t.status === "IN_PROGRESS").length} tasks in progress.
-                </p>
-                <p className="flex items-center gap-2">
-                  <span className="text-purple-500">✦</span> Backlog status: {tasks.length} total tasks are recorded.
-                </p>
-                <p className="flex items-center gap-2">
-                  <span className="text-purple-500">✦</span> Documentation logs: {docs.length} documentation pages created.
-                </p>
-              </div>
-            </div>
-
+              New Task
+            </button>
+            <button
+              onClick={() => setIsDocModalOpen(true)}
+              className="h-9 px-4 rounded-lg border border-border bg-white hover:bg-zinc-50 hover:border-zinc-300 text-sm font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 text-zinc-400">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              New Doc
+            </button>
             <button
               onClick={() => setRightPanel(activeRightPanel === "AI_COPILOT" ? null : "AI_COPILOT")}
-              className="w-full h-8.5 rounded-lg border border-purple-200 bg-purple-50/20 hover:bg-purple-50/40 text-[10px] font-bold text-purple-600 transition-all cursor-pointer relative z-10"
+              className="h-9 px-4 rounded-lg bg-primary hover:bg-[#087F66] text-white text-sm font-medium transition-all cursor-pointer flex items-center gap-2"
             >
-              Ask AI Summary
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
+              </svg>
+              Ask CollabAI
             </button>
           </div>
+        </div>
 
-          {/* Live Activity Telemetry Logs */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <div className="flex justify-between items-center select-none">
-              <h4 className="text-xs font-bold text-zinc-700 uppercase tracking-widest">Live Activity Feed</h4>
-              <span className="flex h-1.5 w-1.5 relative shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-450 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-              </span>
+        {/* ── Stats Row ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((stat) => (
+            <div key={stat.label} className={`bg-white border ${stat.border} rounded-xl p-5 flex items-center gap-4`}>
+              <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center text-xl shrink-0`}>
+                {stat.icon}
+              </div>
+              <div>
+                <p className={`text-2xl font-bold ${stat.color}`}>{tasksLoading ? "—" : stat.value}</p>
+                <p className="text-xs text-zinc-500 font-medium mt-0.5">{stat.label}</p>
+              </div>
             </div>
+          ))}
+        </div>
 
-            <div className="space-y-3 font-mono">
-              {activeEvents.map((evt) => (
-                <div key={evt.id} className="text-[10px] flex justify-between gap-3 items-start leading-relaxed p-2.5 rounded-lg border border-border bg-background select-none animate-in fade-in duration-200">
-                  <span className={`font-semibold ${
-                    evt.type === "ai" ? "text-purple-600" : "text-zinc-650"
-                  }`}>
-                    &gt; {evt.text}
-                  </span>
-                  <span className="text-zinc-400 shrink-0 text-[9px]">{evt.time}</span>
+        {/* ── Main Content Grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* Left Column: Setup checklist + Recent tasks */}
+          <div className="lg:col-span-2 space-y-6">
+
+            {/* Onboarding Checklist */}
+            {progress < 100 && (
+              <div className="bg-white border border-border rounded-xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-zinc-900">Get started with A-Collab</h3>
+                    <p className="text-sm text-zinc-400 mt-0.5">Complete setup to unlock your full workspace potential</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-primary">{progress}%</span>
+                    <p className="text-xs text-zinc-400 font-medium">{completed}/{milestones.length} done</p>
+                  </div>
                 </div>
-              ))}
+
+                {/* Progress bar */}
+                <div className="h-1 bg-zinc-100">
+                  <div
+                    className="h-full bg-primary transition-all duration-700 ease-out"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+
+                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {milestones.map((m, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
+                        m.done ? "bg-accent/50 border-[#0F9F78]/20" : "bg-white border-border hover:border-zinc-300"
+                      }`}
+                    >
+                      <div className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
+                        m.done ? "bg-primary text-white" : "border-2 border-zinc-200 text-zinc-400"
+                      }`}>
+                        {m.done ? "✓" : i + 1}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-medium ${m.done ? "text-primary line-through" : "text-zinc-800"}`}>{m.label}</p>
+                        <p className="text-xs text-zinc-400 mt-0.5">{m.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Tasks */}
+            <div className="bg-white border border-border rounded-xl overflow-hidden">
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+                <h3 className="text-base font-semibold text-zinc-900">Recent Tasks</h3>
+                <Link
+                  to={`/workspaces/${workspaceId}/tasks`}
+                  className="text-sm font-medium text-primary hover:text-[#087F66] transition-colors"
+                >
+                  View all →
+                </Link>
+              </div>
+
+              {tasksLoading ? (
+                <div className="p-6 text-center">
+                  <div className="animate-pulse space-y-3">
+                    {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-zinc-100 rounded-lg" />)}
+                  </div>
+                </div>
+              ) : recentTasks.length === 0 ? (
+                <div className="empty-state px-6">
+                  <div className="empty-state-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5 3 12l3.75 4.5m6.75-9L17.25 12l-3.75 4.5m-3.375.75 1.875-9" />
+                    </svg>
+                  </div>
+                  <p className="empty-state-title">No tasks yet</p>
+                  <p className="empty-state-desc">Create your first task to start tracking work</p>
+                  <button onClick={() => setIsTaskModalOpen(true)} className="btn-primary mt-4 h-9 px-4 text-sm">
+                    Create Task
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {recentTasks.map((task) => {
+                    const p = priorityMap[task.priority] || priorityMap.MEDIUM;
+                    const statusColor = {
+                      TODO: "text-zinc-500", IN_PROGRESS: "text-blue-600", IN_REVIEW: "text-amber-600", DONE: "text-green-600"
+                    }[task.status] || "text-zinc-500";
+                    return (
+                      <div key={task.id} className="px-6 py-3.5 flex items-center gap-4 hover:bg-zinc-50 transition-colors cursor-pointer">
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${
+                          task.status === "DONE" ? "bg-green-500" : task.status === "IN_PROGRESS" ? "bg-blue-500" : task.status === "IN_REVIEW" ? "bg-amber-500" : "bg-zinc-300"
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${task.status === "DONE" ? "line-through text-zinc-400" : "text-zinc-800"}`}>
+                            {task.title}
+                          </p>
+                          {task.dueDate && (
+                            <p className="text-xs text-zinc-400 mt-0.5">
+                              Due {new Date(task.dueDate).toLocaleDateString([], { month: "short", day: "numeric" })}
+                            </p>
+                          )}
+                        </div>
+                        <span className={`ac-badge ${p.className} shrink-0`}>{p.label}</span>
+                        <span className={`text-xs font-medium ${statusColor} shrink-0 hidden sm:block`}>
+                          {task.status?.replace("_", " ")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Right Column: Calendar + AI card */}
+          <div className="space-y-6">
+
+            {/* Mini Calendar */}
+            <div className="bg-white border border-border rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h3 className="text-base font-semibold text-zinc-900">{monthName}</h3>
+              </div>
+              <div className="p-4">
+                {/* Weekday headers */}
+                <div className="grid grid-cols-7 mb-2">
+                  {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
+                    <div key={d} className="text-center text-xs font-medium text-zinc-400 py-1">{d}</div>
+                  ))}
+                </div>
+                {/* Days */}
+                <div className="grid grid-cols-7 gap-0.5">
+                  {calendarDays.map((day, i) => {
+                    if (!day) return <div key={i} className="aspect-square" />;
+                    const isToday = day.getDate() === today;
+                    const hasTasks = tasks.some((t) => {
+                      if (!t.dueDate) return false;
+                      const d = new Date(t.dueDate);
+                      return d.getDate() === day.getDate() && d.getMonth() === day.getMonth();
+                    });
+                    return (
+                      <div
+                        key={i}
+                        className={`aspect-square flex flex-col items-center justify-center rounded-lg relative transition-colors cursor-default text-sm ${
+                          isToday
+                            ? "bg-primary text-white font-semibold"
+                            : "hover:bg-zinc-50 text-zinc-700"
+                        }`}
+                      >
+                        <span>{day.getDate()}</span>
+                        {hasTasks && !isToday && (
+                          <span className="absolute bottom-1 h-1 w-1 rounded-full bg-amber-500" />
+                        )}
+                        {hasTasks && isToday && (
+                          <span className="absolute bottom-1 h-1 w-1 rounded-full bg-white/70" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* AI Insight Card */}
+            <div className="bg-white border border-violet-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-violet-100 flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4 text-violet-600">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-zinc-900">CollabAI</p>
+                  <p className="text-xs text-zinc-400">Workspace intelligence</p>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-3">
+                <div className="space-y-2">
+                  {[
+                    { icon: "📊", text: `${tasks.filter((t) => t.status === "IN_PROGRESS").length} tasks in progress right now` },
+                    { icon: "📚", text: `${docs.length} knowledge documents created` },
+                    { icon: "👥", text: `${members.length} team member${members.length !== 1 ? "s" : ""} in this workspace` },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-2.5 text-sm text-zinc-600">
+                      <span>{item.icon}</span>
+                      <span>{item.text}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setRightPanel(activeRightPanel === "AI_COPILOT" ? null : "AI_COPILOT")}
+                  className="w-full h-9 rounded-lg bg-violet-50 border border-violet-200 hover:bg-violet-100 text-sm font-medium text-violet-600 transition-all cursor-pointer"
+                >
+                  Open CollabAI →
+                </button>
+              </div>
+            </div>
+
+            {/* Recent Docs */}
+            {docs.length > 0 && (
+              <div className="bg-white border border-border rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-zinc-900">Recent Documents</h3>
+                  <Link to={`/workspaces/${workspaceId}/docs`} className="text-xs text-primary hover:text-[#087F66]">All docs →</Link>
+                </div>
+                <div className="divide-y divide-border">
+                  {docs.slice(0, 4).map((doc) => (
+                    <Link
+                      key={doc.id}
+                      to={`/workspaces/${workspaceId}/docs`}
+                      className="flex items-center gap-3 px-5 py-3 hover:bg-zinc-50 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4 text-zinc-400 shrink-0">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                      </svg>
+                      <p className="text-sm text-zinc-700 truncate">{doc.title}</p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* QUICK TASK MODAL OVERLAY */}
+      {/* ── Create Task Modal ── */}
       {isTaskModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 space-y-4 shadow-lg animate-in zoom-in-95 duration-150">
-            <div className="flex justify-between items-center">
-              <h4 className="text-xs font-bold text-zinc-700 uppercase tracking-widest">Create Task</h4>
-              <button onClick={() => setIsTaskModalOpen(false)} className="text-zinc-400 hover:text-zinc-800 text-xs font-black cursor-pointer">✕</button>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-border shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h3 className="text-base font-semibold text-zinc-900">Create Task</h3>
+              <button onClick={() => setIsTaskModalOpen(false)} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            
-            <form onSubmit={handleCreateTask} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-zinc-450 uppercase tracking-wider block">Task Title</label>
-                <input
-                  type="text"
-                  placeholder="Task title..."
-                  value={taskTitle}
-                  onChange={(e) => setTaskTitle(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-                />
+            <form onSubmit={handleCreateTask} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Title</label>
+                <input className="ac-input" placeholder="Task title..." value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} autoFocus required />
               </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-zinc-450 uppercase tracking-wider block">Description</label>
-                <textarea
-                  placeholder="Task details..."
-                  value={taskDesc}
-                  onChange={(e) => setTaskDesc(e.target.value)}
-                  className="w-full min-h-[60px] rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 resize-none"
-                />
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Description <span className="text-zinc-400 font-normal">(optional)</span></label>
+                <textarea className="ac-textarea min-h-[80px]" placeholder="Describe the task..." value={taskDesc} onChange={(e) => setTaskDesc(e.target.value)} />
               </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-zinc-450 uppercase tracking-wider block">Priority</label>
-                <select
-                  value={taskPriority}
-                  onChange={(e) => setTaskPriority(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-                >
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Priority</label>
+                <select className="ac-select" value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}>
                   <option value="LOW">Low</option>
                   <option value="MEDIUM">Medium</option>
                   <option value="HIGH">High</option>
                   <option value="URGENT">Urgent</option>
                 </select>
               </div>
-
-              <button
-                type="submit"
-                disabled={createTaskMutation.isPending}
-                className="w-full h-9 rounded-lg bg-primary text-xs font-bold text-white hover:bg-primary/95 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {createTaskMutation.isPending ? "Creating..." : "Create Task"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* QUICK DOCUMENT MODAL OVERLAY */}
-      {isDocModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 space-y-4 shadow-lg animate-in zoom-in-95 duration-150">
-            <div className="flex justify-between items-center">
-              <h4 className="text-xs font-bold text-zinc-700 uppercase tracking-widest">Create Wiki Document</h4>
-              <button onClick={() => setIsDocModalOpen(false)} className="text-zinc-400 hover:text-zinc-800 text-xs font-black cursor-pointer">✕</button>
-            </div>
-            
-            <form onSubmit={handleCreateDoc} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-zinc-450 uppercase tracking-wider block">Document Title</label>
-                <input
-                  type="text"
-                  placeholder="Document title..."
-                  value={docTitle}
-                  onChange={(e) => setDocTitle(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-                />
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsTaskModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" disabled={createTaskMutation.isPending} className="btn-primary flex-1">
+                  {createTaskMutation.isPending ? "Creating..." : "Create Task"}
+                </button>
               </div>
-
-              <button
-                type="submit"
-                disabled={createDocMutation.isPending}
-                className="w-full h-9 rounded-lg bg-primary text-xs font-bold text-white hover:bg-primary/95 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {createDocMutation.isPending ? "Creating..." : "Create Document"}
-              </button>
             </form>
           </div>
         </div>
       )}
 
+      {/* ── Create Doc Modal ── */}
+      {isDocModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-border shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h3 className="text-base font-semibold text-zinc-900">Create Document</h3>
+              <button onClick={() => setIsDocModalOpen(false)} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleCreateDoc} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Document Title</label>
+                <input className="ac-input" placeholder="Untitled document..." value={docTitle} onChange={(e) => setDocTitle(e.target.value)} autoFocus required />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsDocModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" disabled={createDocMutation.isPending} className="btn-primary flex-1">
+                  {createDocMutation.isPending ? "Creating..." : "Create Document"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

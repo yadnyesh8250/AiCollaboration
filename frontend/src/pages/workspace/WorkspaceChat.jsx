@@ -317,19 +317,46 @@ export default function WorkspaceChat() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const getAvatarColor = (username) => {
-    if (!username) return "bg-zinc-150 text-zinc-500 border-zinc-200";
-    const colors = [
-      "bg-teal-50 text-teal-600 border-teal-200",
-      "bg-purple-50 text-purple-600 border-purple-200",
-      "bg-blue-50 text-blue-600 border-blue-200",
-      "bg-amber-50 text-amber-600 border-amber-200"
+  // Deterministic background color per user
+  const getAvatarBg = (username) => {
+    if (!username) return "bg-zinc-200 text-zinc-600";
+    const palettes = [
+      "bg-teal-500",
+      "bg-violet-500",
+      "bg-blue-500",
+      "bg-amber-500",
+      "bg-rose-500",
+      "bg-emerald-500",
+      "bg-indigo-500",
+      "bg-pink-500",
     ];
     let hash = 0;
     for (let i = 0; i < username.length; i++) {
       hash = username.charCodeAt(i) + ((hash << 5) - hash);
     }
-    return colors[Math.abs(hash) % colors.length];
+    return palettes[Math.abs(hash) % palettes.length];
+  };
+
+  // Reusable avatar component — shows photo if available, else colored initials
+  const UserAvatar = ({ user: u, size = "md" }) => {
+    const sizeClass = size === "lg" ? "h-9 w-9 text-sm" : size === "sm" ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs";
+    const username = u?.username || "?";
+    const avatarUrl = u?.avatarUrl;
+    if (avatarUrl) {
+      return (
+        <img
+          src={avatarUrl}
+          alt={username}
+          className={`${sizeClass} rounded-full object-cover shrink-0 ring-2 ring-white`}
+          onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
+        />
+      );
+    }
+    return (
+      <div className={`${sizeClass} rounded-full ${getAvatarBg(username)} text-white font-semibold flex items-center justify-center shrink-0 ring-2 ring-white select-none`}>
+        {getInitials(username)}
+      </div>
+    );
   };
 
   const getCardIcon = (cardType) => {
@@ -495,15 +522,15 @@ export default function WorkspaceChat() {
                       </div>
                     </div>
                   ) : (
-                    /* User Message Layout */
+                    /* User Message Layout — Slack style */
                     <div className="flex items-start gap-3">
-                      <div className={`h-7 w-7 rounded-full border flex items-center justify-center text-[10px] font-bold shrink-0 select-none ${getAvatarColor(msg.sender?.username)}`}>
-                        {getInitials(msg.sender?.username || "System")}
-                      </div>
-                      <div className="flex-1 overflow-hidden space-y-1">
+                      {/* Profile picture / avatar */}
+                      <UserAvatar user={msg.sender} size="md" />
+
+                      <div className="flex-1 overflow-hidden space-y-1 min-w-0">
                         <div className="flex items-baseline gap-2 select-none">
-                          <span className="text-xs font-bold text-zinc-700">{msg.sender?.username || "System"}</span>
-                          <span className="text-[8px] text-zinc-400 font-bold uppercase">
+                          <span className="text-sm font-semibold text-zinc-900">{msg.sender?.username || "System"}</span>
+                          <span className="text-xs text-zinc-400">
                             {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
@@ -598,13 +625,20 @@ export default function WorkspaceChat() {
           )}
 
           {aiTyping && (
-            <div className="flex items-start gap-3 p-3 rounded-xl border border-border bg-card animate-pulse">
-              <div className="h-7 w-7 rounded-full bg-purple-100 text-[10px] font-bold text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
-                AI
+            <div className="flex items-start gap-3 px-3 py-2.5 rounded-xl">
+              {/* AI avatar */}
+              <div className="h-8 w-8 rounded-full bg-violet-100 border-2 border-white ring-2 ring-violet-200 flex items-center justify-center shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4 text-violet-600">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
+                </svg>
               </div>
-              <div className="space-y-0.5 select-none">
-                <span className="text-[9px] font-bold text-purple-600 uppercase tracking-widest block">CollabAI</span>
-                <p className="text-[10px] text-zinc-500 italic font-semibold pl-0.5">compiling response...</p>
+              <div className="space-y-1 select-none">
+                <span className="text-sm font-semibold text-zinc-900 block">CollabAI</span>
+                <div className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
               </div>
             </div>
           )}
@@ -612,113 +646,125 @@ export default function WorkspaceChat() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Message Composer */}
-        <form onSubmit={handleSend} className="p-6 border-t border-border bg-card/65 backdrop-blur-md shrink-0">
-          <div className="relative rounded-lg border border-border bg-card focus-within:border-zinc-350 focus-within:ring-1 focus-within:ring-zinc-350 transition-all">
-            <input
-              type="text"
-              placeholder={`Message #${activeChannel?.name || "chat"}... (Use @ai to invoke AI assistant)`}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              className="w-full h-11 bg-transparent pl-4 pr-24 text-xs text-foreground outline-none border-none placeholder:text-zinc-400"
-            />
+        {/* Message Composer — Slack style */}
+        <form onSubmit={handleSend} className="px-6 pb-5 pt-3 border-t border-border bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Current user avatar */}
+            <UserAvatar user={user} size="md" />
 
-            {/* Hidden upload file input */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-            />
+            {/* Input box */}
+            <div className="flex-1 relative rounded-xl border border-border bg-zinc-50 hover:border-zinc-300 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 focus-within:bg-white transition-all">
+              <input
+                type="text"
+                placeholder={`Message #${activeChannel?.name || "chat"}  ·  Use @ai for CollabAI`}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                className="w-full h-11 bg-transparent pl-4 pr-20 text-sm text-zinc-900 outline-none border-none placeholder:text-zinc-400"
+              />
 
-            {/* Action icons absolute in composer bar */}
-            <div className="absolute inset-y-0 right-3 flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-1.5 text-zinc-400 hover:text-zinc-800 rounded transition-colors cursor-pointer"
-                title="Add attachment"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.2" stroke="currentColor" className="w-3.5 h-3.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-                </svg>
-              </button>
-              <button
-                type="submit"
-                className="p-1.5 text-zinc-400 hover:text-primary rounded transition-colors cursor-pointer"
-                title="Send message"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.2" stroke="currentColor" className="w-3.5 h-3.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                </svg>
-              </button>
+              {/* Hidden upload file input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+
+              {/* Action buttons */}
+              <div className="absolute inset-y-0 right-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
+                  title="Attach file"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                  </svg>
+                </button>
+                <button
+                  type="submit"
+                  disabled={!inputValue.trim()}
+                  className="p-1.5 text-zinc-400 hover:text-primary rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer disabled:opacity-40"
+                  title="Send"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </form>
       </div>
 
-      {/* Right Threads Sidebar Panel (Slack style) */}
+      {/* Right Threads Sidebar Panel — Slack style */}
       {activeThreadMessage && (
-        <aside className="w-[350px] border-l border-border bg-card flex flex-col h-full shrink-0 z-20 animate-in slide-in-from-right duration-200">
+        <aside className="w-[360px] border-l border-border bg-white flex flex-col h-full shrink-0 z-20 animate-in slide-in-from-right duration-200">
           {/* Thread Header */}
-          <div className="h-12 border-b border-border px-4 flex items-center justify-between shrink-0 bg-card">
+          <div className="h-12 border-b border-border px-5 flex items-center justify-between shrink-0">
             <div>
-              <h3 className="text-xs font-bold text-zinc-700">Thread</h3>
-              <p className="text-[9px] text-zinc-400 font-semibold uppercase">#{activeChannel?.name || "chat"}</p>
+              <h3 className="text-sm font-semibold text-zinc-900">Thread</h3>
+              <p className="text-xs text-zinc-400">#{activeChannel?.name || "chat"}</p>
             </div>
             <button
               onClick={() => setActiveThreadMessage(null)}
-              className="text-zinc-400 hover:text-zinc-800 p-1 text-xs font-black cursor-pointer"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-colors"
             >
-              ✕
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 
           {/* Thread Message Stream */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 space-y-5 no-scrollbar bg-zinc-50/40">
             {/* Parent Message Card */}
-            <div className="p-3 bg-zinc-50 border border-border rounded-xl space-y-2">
-              <div className="flex items-center gap-2">
-                <div className={`h-6 w-6 rounded-full border flex items-center justify-center text-[9px] font-bold select-none ${getAvatarColor(activeThreadMessage.sender?.username)}`}>
-                  {getInitials(activeThreadMessage.sender?.username)}
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-zinc-700">{activeThreadMessage.sender?.username || "System"}</p>
-                  <p className="text-[8px] text-zinc-400 font-bold uppercase">Original Message</p>
+            <div className="bg-white border border-border rounded-xl p-4 space-y-3 shadow-sm">
+              <div className="flex items-start gap-3">
+                <UserAvatar user={activeThreadMessage.sender} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-sm font-semibold text-zinc-900">{activeThreadMessage.sender?.username || "System"}</p>
+                    <span className="text-xs text-zinc-400">Original</span>
+                  </div>
+                  <p className="text-sm text-zinc-600 leading-relaxed whitespace-pre-wrap mt-1">
+                    {activeThreadMessage.content}
+                  </p>
                 </div>
               </div>
-              <p className="text-xs text-zinc-600 leading-relaxed font-semibold whitespace-pre-wrap pl-1">
-                {activeThreadMessage.content}
-              </p>
             </div>
 
-            <div className="text-[9px] font-bold text-zinc-450 uppercase tracking-widest px-1">
-              Replies ({threadReplies.length})
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs font-medium text-zinc-400">{threadReplies.length} {threadReplies.length === 1 ? "reply" : "replies"}</span>
+              <div className="flex-1 h-px bg-border" />
             </div>
 
             {/* Replies List */}
-            <div className="space-y-3 pt-1">
+            <div className="space-y-4">
               {loadingThread ? (
-                <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
+                <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider animate-pulse">Loading replies...</span>
+                  <span className="text-xs text-zinc-400">Loading replies...</span>
                 </div>
               ) : threadReplies.length === 0 ? (
-                <div className="py-12 text-center text-zinc-400 text-[10px] italic">No replies yet. Send a message to start.</div>
+                <div className="py-10 text-center">
+                  <p className="text-sm text-zinc-400">No replies yet.</p>
+                  <p className="text-xs text-zinc-300 mt-1">Be the first to reply.</p>
+                </div>
               ) : (
                 threadReplies.map((reply) => (
-                  <div key={reply.id} className="flex items-start gap-2.5 p-1">
-                    <div className={`h-6 w-6 rounded-full border flex items-center justify-center text-[9px] font-bold shrink-0 select-none ${getAvatarColor(reply.sender?.username)}`}>
-                      {getInitials(reply.sender?.username)}
-                    </div>
-                    <div className="overflow-hidden space-y-0.5 flex-1">
-                      <div className="flex items-baseline justify-between select-none">
-                        <span className="text-[11px] font-bold text-zinc-700 truncate">{reply.sender?.username || "System"}</span>
-                        <span className="text-[8px] text-zinc-450 uppercase shrink-0">
+                  <div key={reply.id} className="flex items-start gap-3">
+                    <UserAvatar user={reply.sender} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-semibold text-zinc-900">{reply.sender?.username || "System"}</span>
+                        <span className="text-xs text-zinc-400">
                           {new Date(reply.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <p className="text-xs text-zinc-650 leading-relaxed break-words whitespace-pre-wrap">
+                      <p className="text-sm text-zinc-600 leading-relaxed break-words whitespace-pre-wrap mt-0.5">
                         {reply.content}
                       </p>
                     </div>
@@ -729,21 +775,25 @@ export default function WorkspaceChat() {
           </div>
 
           {/* Thread Reply Input Composer */}
-          <form onSubmit={handleSendThreadReply} className="p-4 border-t border-border bg-card shrink-0">
-            <div className="flex gap-1.5 items-center bg-zinc-50 border border-border rounded-lg px-2">
-              <input
-                type="text"
-                placeholder="Reply in thread..."
-                value={threadInputValue}
-                onChange={(e) => setThreadInputValue(e.target.value)}
-                className="flex-1 h-9 bg-transparent text-xs text-foreground outline-none border-none placeholder:text-zinc-400"
-              />
-              <button
-                type="submit"
-                className="text-primary hover:text-primary/80 font-bold text-xs px-2 shrink-0 cursor-pointer"
-              >
-                Send
-              </button>
+          <form onSubmit={handleSendThreadReply} className="px-4 pb-4 pt-3 border-t border-border bg-white shrink-0">
+            <div className="flex items-center gap-2">
+              <UserAvatar user={user} size="sm" />
+              <div className="flex-1 relative rounded-xl border border-border bg-zinc-50 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 focus-within:bg-white transition-all">
+                <input
+                  type="text"
+                  placeholder="Reply in thread..."
+                  value={threadInputValue}
+                  onChange={(e) => setThreadInputValue(e.target.value)}
+                  className="flex-1 w-full h-9 bg-transparent pl-3 pr-14 text-sm text-zinc-900 outline-none border-none placeholder:text-zinc-400"
+                />
+                <button
+                  type="submit"
+                  disabled={!threadInputValue.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-primary hover:text-[#087F66] disabled:opacity-40 cursor-pointer px-1"
+                >
+                  Send
+                </button>
+              </div>
             </div>
           </form>
         </aside>

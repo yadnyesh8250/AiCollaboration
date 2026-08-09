@@ -166,15 +166,15 @@ export default function WorkspaceDocs() {
 
   if (selectedDoc) {
     return (
-      <div className="p-6 space-y-6 h-full flex flex-col bg-[#030303] text-foreground overflow-hidden selection:bg-primary/20 selection:text-white">
+      <div className="h-full flex flex-col bg-white overflow-hidden">
         {/* Doc Header */}
-        <div className="flex items-center justify-between shrink-0 bg-black/40 border-b border-zinc-950 pb-4">
+        <div className="shrink-0 px-8 py-4 border-b border-border flex items-center justify-between bg-white">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSelectedDoc(null)}
-              className="text-zinc-500 hover:text-white cursor-pointer p-1.5 rounded hover:bg-zinc-900/30 transition-colors"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3.5 h-3.5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
               </svg>
             </button>
@@ -184,16 +184,16 @@ export default function WorkspaceDocs() {
                 value={docTitle}
                 onChange={(e) => setDocTitle(e.target.value)}
                 onBlur={handleSaveDocMeta}
-                className="text-sm font-bold tracking-tight text-white bg-transparent border-b border-transparent focus:border-zinc-900 outline-none pb-0.5"
+                className="text-base font-semibold text-zinc-900 bg-transparent border-b-2 border-transparent focus:border-primary outline-none pb-0.5 transition-colors"
               />
-              <div className="flex items-center gap-2 mt-0.5 pl-0.5">
+              <div className="flex items-center gap-2 mt-0.5">
                 <select
                   value={docVisibility}
                   onChange={(e) => {
                     setDocVisibility(e.target.value);
                     updateDocMutation.mutate({ visibility: e.target.value });
                   }}
-                  className="text-[9px] font-bold text-zinc-650 uppercase bg-transparent outline-none cursor-pointer"
+                  className="text-xs text-zinc-400 bg-transparent outline-none cursor-pointer"
                 >
                   <option value="WORKSPACE">Workspace Visible</option>
                   <option value="PUBLIC">Public Access</option>
@@ -203,152 +203,161 @@ export default function WorkspaceDocs() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 select-none">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 if (confirm("Are you sure you want to delete this document?")) {
                   deleteDocMutation.mutate();
                 }
               }}
-              className="text-[10px] font-bold text-red-400 bg-red-950/15 border border-red-900/30 px-3 py-1.5 rounded-lg hover:bg-red-900/20 transition-colors cursor-pointer"
+              className="btn-danger h-9 px-4 text-sm"
             >
               Delete
             </button>
             <button
               onClick={handleSaveBlocks}
               disabled={updateBlocksMutation.isPending}
-              className="text-[10px] font-bold text-black bg-white px-3 py-1.5 rounded-lg hover:bg-zinc-200 transition-colors cursor-pointer"
+              className="btn-primary h-9 px-4 text-sm"
             >
-              {updateBlocksMutation.isPending ? "Saving..." : "Save Blocks"}
+              {updateBlocksMutation.isPending ? "Saving..." : "Save"}
             </button>
           </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto space-y-6 pr-1 relative no-scrollbar max-w-2xl mx-auto w-full">
-          {localBlocks.map((block, idx) => {
-            return (
-              <div key={block.id} className="group relative py-1 space-y-2">
-                {/* Block Controls (top right corner of block card) */}
-                <div className="absolute -right-16 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-zinc-950 border border-zinc-900 p-1 rounded-lg z-10 select-none">
+        {/* Notion-style Content Area */}
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <div className="max-w-2xl mx-auto px-8 py-10 space-y-2 relative">
+            {localBlocks.length === 0 && (
+              <div className="py-12 text-center">
+                <p className="text-zinc-300 text-sm">Start writing — add a block below ↓</p>
+              </div>
+            )}
+
+            {localBlocks.map((block, idx) => (
+              <div key={block.id} className="group relative">
+                {/* Block Controls */}
+                <div className="absolute -right-14 top-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-white border border-border shadow-sm p-1 rounded-lg z-10">
                   <button
                     onClick={() => moveBlock(idx, "up")}
-                    className="p-1 text-zinc-600 hover:text-zinc-300 rounded hover:bg-zinc-900 cursor-pointer text-[9px]"
-                  >
-                    ▲
-                  </button>
+                    className="p-1 text-zinc-400 hover:text-zinc-700 rounded hover:bg-zinc-100 cursor-pointer text-xs"
+                    title="Move up"
+                  >▲</button>
                   <button
                     onClick={() => moveBlock(idx, "down")}
-                    className="p-1 text-zinc-600 hover:text-zinc-300 rounded hover:bg-zinc-900 cursor-pointer text-[9px]"
-                  >
-                    ▼
-                  </button>
+                    className="p-1 text-zinc-400 hover:text-zinc-700 rounded hover:bg-zinc-100 cursor-pointer text-xs"
+                    title="Move down"
+                  >▼</button>
                   <button
                     onClick={() => deleteBlock(idx)}
-                    className="p-1 text-red-500/80 hover:text-red-400 rounded hover:bg-zinc-900 cursor-pointer text-[9px]"
-                  >
-                    ✕
-                  </button>
+                    className="p-1 text-red-400 hover:text-red-600 rounded hover:bg-red-50 cursor-pointer text-xs"
+                    title="Delete block"
+                  >✕</button>
                 </div>
 
-                {/* Block Content Editor */}
+                {/* HEADING */}
                 {block.type === "HEADING" && (
                   <input
                     type="text"
                     value={block.content}
                     placeholder="Heading"
                     onChange={(e) => updateBlockContent(idx, e.target.value)}
-                    className="w-full text-base font-bold text-white bg-transparent outline-none border-none placeholder:text-zinc-800"
+                    className="w-full text-2xl font-bold text-zinc-900 bg-transparent outline-none border-none placeholder:text-zinc-200 py-1"
                   />
                 )}
 
+                {/* PARAGRAPH */}
                 {block.type === "PARAGRAPH" && (
                   <textarea
                     value={block.content}
-                    placeholder="Type '/' for commands..."
+                    placeholder="Write something..."
                     onChange={(e) => updateBlockContent(idx, e.target.value)}
-                    className="w-full text-xs text-zinc-350 bg-transparent outline-none resize-none no-scrollbar min-h-[24px] placeholder:text-zinc-850"
+                    className="w-full text-sm text-zinc-700 leading-relaxed bg-transparent outline-none resize-none no-scrollbar min-h-[28px] placeholder:text-zinc-300 py-1"
+                    rows={Math.max(2, block.content?.split("\n").length || 1)}
                   />
                 )}
 
+                {/* CODE */}
                 {block.type === "CODE" && (
-                  <textarea
-                    value={block.content}
-                    placeholder="// Write code here..."
-                    onChange={(e) => updateBlockContent(idx, e.target.value)}
-                    className="w-full font-mono text-[10px] text-teal-400 bg-zinc-950/60 p-3 rounded-lg border border-zinc-950 outline-none min-h-[60px] resize-y"
-                  />
-                )}
-
-                {block.type === "QUOTE" && (
-                  <div className="flex gap-3 border-l border-zinc-700 pl-3">
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-950 overflow-hidden">
+                    <div className="flex items-center gap-1.5 px-4 py-2 border-b border-zinc-800">
+                      <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                      <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                    </div>
                     <textarea
                       value={block.content}
-                      placeholder="Empty Quote"
+                      placeholder="// Write code here..."
                       onChange={(e) => updateBlockContent(idx, e.target.value)}
-                      className="flex-1 text-xs text-zinc-450 italic bg-transparent outline-none resize-none"
+                      className="w-full font-mono text-sm text-teal-300 bg-transparent p-4 outline-none min-h-[80px] resize-y"
                     />
                   </div>
                 )}
 
+                {/* QUOTE */}
+                {block.type === "QUOTE" && (
+                  <div className="flex gap-3 border-l-4 border-primary/40 pl-4 py-1">
+                    <textarea
+                      value={block.content}
+                      placeholder="Quote..."
+                      onChange={(e) => updateBlockContent(idx, e.target.value)}
+                      className="flex-1 text-sm text-zinc-500 italic bg-transparent outline-none resize-none placeholder:text-zinc-300"
+                    />
+                  </div>
+                )}
+
+                {/* CHECKLIST */}
                 {block.type === "CHECKLIST" && (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 py-1">
                     <input
                       type="checkbox"
                       checked={(() => {
-                        try {
-                          const parsed = JSON.parse(block.content);
-                          return !!parsed.completed;
-                        } catch {
-                          return false;
-                        }
+                        try { return !!JSON.parse(block.content).completed; } catch { return false; }
                       })()}
                       onChange={(e) => {
                         let text = "Checklist item";
-                        try {
-                          text = JSON.parse(block.content).text;
-                        } catch {}
+                        try { text = JSON.parse(block.content).text; } catch {}
                         updateBlockContent(idx, JSON.stringify({ text, completed: e.target.checked }));
                       }}
-                      className="h-3.5 w-3.5 rounded border-zinc-900 bg-zinc-950 text-white focus:ring-zinc-800 cursor-pointer"
+                      className="h-4 w-4 rounded border-zinc-300 text-primary focus:ring-primary/30 cursor-pointer accent-primary"
                     />
                     <input
                       type="text"
                       value={(() => {
-                        try {
-                          return JSON.parse(block.content).text || "";
-                        } catch {
-                          return block.content;
-                        }
+                        try { return JSON.parse(block.content).text || ""; } catch { return block.content; }
                       })()}
                       onChange={(e) => {
                         let completed = false;
-                        try {
-                          completed = JSON.parse(block.content).completed;
-                        } catch {}
+                        try { completed = JSON.parse(block.content).completed; } catch {}
                         updateBlockContent(idx, JSON.stringify({ text: e.target.value, completed }));
                       }}
-                      className="flex-1 text-xs text-zinc-350 bg-transparent outline-none border-none placeholder:text-zinc-800"
+                      className="flex-1 text-sm text-zinc-700 bg-transparent outline-none border-none placeholder:text-zinc-300"
                     />
                   </div>
                 )}
               </div>
-            );
-          })}
+            ))}
 
-          {/* Add Block Toolbar */}
-          <div className="pt-6 border-t border-zinc-950 flex items-center justify-between select-none">
-            <span className="text-[9px] text-zinc-650 font-bold uppercase tracking-widest">Add Element</span>
-            <div className="flex flex-wrap gap-2">
-              {["HEADING", "PARAGRAPH", "CHECKLIST", "CODE", "QUOTE"].map((t) => (
-                <button
-                  key={t}
-                  onClick={() => addBlock(t)}
-                  className="h-6.5 px-2.5 rounded-lg border border-zinc-900 bg-zinc-950/20 hover:bg-zinc-900/40 text-[9px] font-bold text-zinc-500 hover:text-white transition-all cursor-pointer uppercase tracking-wider"
-                >
-                  {t}
-                </button>
-              ))}
+            {/* Add Block Toolbar */}
+            <div className="pt-8 border-t border-zinc-100 flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-400">Add block</span>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { type: "HEADING", icon: "H", label: "Heading" },
+                  { type: "PARAGRAPH", icon: "¶", label: "Text" },
+                  { type: "CHECKLIST", icon: "✓", label: "Checklist" },
+                  { type: "CODE", icon: "</>", label: "Code" },
+                  { type: "QUOTE", icon: '"', label: "Quote" },
+                ].map((item) => (
+                  <button
+                    key={item.type}
+                    onClick={() => addBlock(item.type)}
+                    className="h-8 px-3 rounded-lg border border-border bg-white hover:bg-zinc-50 hover:border-zinc-300 text-xs font-medium text-zinc-600 hover:text-zinc-900 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span className="text-zinc-400 font-mono text-xs">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -357,117 +366,130 @@ export default function WorkspaceDocs() {
   }
 
   return (
-    <div className="p-6 space-y-6 h-full flex flex-col selection:bg-primary/20 selection:text-white">
-      <div className="flex justify-between items-center shrink-0">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-5 border-b border-border bg-white flex items-center justify-between shrink-0">
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-white select-none">Documents</h2>
-          <p className="text-[11px] text-zinc-550 font-medium select-none">Collaborative workspace specs and project blueprints</p>
+          <h1 className="text-lg font-semibold text-zinc-900">Documents</h1>
+          <p className="text-sm text-zinc-400 mt-0.5">Workspace knowledge base and project docs</p>
         </div>
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="h-8 px-3.5 rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 transition-all cursor-pointer shadow-sm"
+          className="btn-primary h-9 px-4 text-sm flex items-center gap-2"
         >
-          Create Document
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3.5 h-3.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          New Document
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1 no-scrollbar select-none">
+      {/* Doc list */}
+      <div className="flex-1 overflow-y-auto p-6 no-scrollbar">
         {isLoading ? (
-          <div className="flex-1 flex items-center justify-center py-20">
-            <span className="text-xs text-zinc-650 animate-pulse font-bold">Loading documents...</span>
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span className="text-sm text-zinc-400">Loading documents...</span>
           </div>
         ) : documents.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-20">
-            <div className="h-10 w-10 rounded-xl bg-zinc-950 border border-zinc-900 flex items-center justify-center text-zinc-650">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+          <div className="h-full flex flex-col items-center justify-center text-center py-20">
+            <div className="h-12 w-12 rounded-2xl bg-zinc-100 border border-border flex items-center justify-center text-zinc-400 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
             </div>
-            <div>
-              <h4 className="text-xs font-bold text-zinc-400">No Documents Found</h4>
-              <p className="text-[10px] text-zinc-550 mt-1 max-w-[240px]">
-                Create a document to write blueprints, specs, and reviews.
-              </p>
-            </div>
+            <h4 className="text-sm font-semibold text-zinc-700">No documents yet</h4>
+            <p className="text-sm text-zinc-400 mt-1 max-w-xs">Create your first document to start building your team's knowledge base.</p>
+            <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary mt-4 h-9 px-4 text-sm">
+              Create Document
+            </button>
           </div>
         ) : (
-          documents.map((doc) => (
-            <div
-              key={doc.id}
-              onClick={() => setSelectedDoc(doc)}
-              className="flex items-center justify-between p-4 rounded-xl border border-zinc-950 hover:border-zinc-900 bg-zinc-950/20 hover:bg-zinc-900/10 transition-all cursor-pointer group"
-            >
-              <div className="flex items-center gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                </svg>
-                <div>
-                  <p className="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors">{doc.title}</p>
-                  <p className="text-[9px] text-zinc-600 font-bold uppercase mt-0.5">Visibility: {doc.visibility}</p>
+          <div className="space-y-2 max-w-3xl mx-auto">
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                onClick={() => setSelectedDoc(doc)}
+                className="flex items-center justify-between px-5 py-4 rounded-xl border border-border bg-white hover:border-zinc-300 hover:shadow-sm transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-8 w-8 rounded-lg bg-zinc-50 border border-border flex items-center justify-center shrink-0 group-hover:border-zinc-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4 text-zinc-400">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-zinc-800 group-hover:text-zinc-900 transition-colors truncate">{doc.title}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5 capitalize">{doc.visibility?.toLowerCase()} · {doc._count?.blocks || 0} blocks</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs text-zinc-400">
+                    {new Date(doc.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 text-zinc-300 group-hover:text-zinc-500 transition-colors">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
                 </div>
               </div>
-              <span className="text-[10px] text-zinc-600 font-bold uppercase">
-                {new Date(doc.updatedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
-              </span>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Create Document Modal */}
+      {/* ── Create Document Modal ── */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-xl border border-zinc-900 bg-zinc-950 p-6 space-y-4 shadow-2xl relative animate-in zoom-in-95 duration-150">
-            <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
-              <h3 className="text-sm font-bold text-zinc-200">Create Document</h3>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-border shadow-2xl animate-in zoom-in-95 duration-150 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h3 className="text-base font-semibold text-zinc-900">Create Document</h3>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
-                className="text-zinc-650 hover:text-white cursor-pointer"
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <form onSubmit={handleCreateDoc} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block">Document Title</label>
+            <form onSubmit={handleCreateDoc} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 mb-1.5">Document Title</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Project Brief"
+                  autoFocus
+                  placeholder="e.g. Product Roadmap"
                   value={newDocTitle}
                   onChange={(e) => setNewDocTitle(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 text-xs text-foreground placeholder:text-zinc-600/70 outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all"
+                  className="ac-input"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block">Visibility</label>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 mb-1.5">Visibility</label>
                 <select
                   value={newDocVisibility}
                   onChange={(e) => setNewDocVisibility(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-zinc-900 bg-zinc-950/40 px-2 text-xs text-zinc-300 outline-none focus:border-zinc-700 cursor-pointer"
+                  className="ac-select"
                 >
-                  <option value="WORKSPACE">Workspace (everyone in workspace can view)</option>
-                  <option value="PUBLIC">Public (everyone with the link can view)</option>
-                  <option value="PRIVATE">Private (invite-only)</option>
+                  <option value="WORKSPACE">Workspace — everyone in workspace can view</option>
+                  <option value="PUBLIC">Public — anyone with the link</option>
+                  <option value="PRIVATE">Private — invite only</option>
                 </select>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-900">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="h-9 px-4 rounded-lg border border-zinc-900 hover:bg-zinc-900/30 text-xs font-semibold text-zinc-500 hover:text-zinc-300 cursor-pointer"
-                >
-                  Cancel
-                </button>
+                  className="btn-secondary flex-1"
+                >Cancel</button>
                 <button
                   type="submit"
                   disabled={createDocMutation.isPending}
-                  className="h-9 px-4 rounded-lg bg-white text-xs font-semibold text-black hover:bg-zinc-200 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                  className="btn-primary flex-1"
                 >
                   {createDocMutation.isPending ? "Creating..." : "Create Document"}
                 </button>

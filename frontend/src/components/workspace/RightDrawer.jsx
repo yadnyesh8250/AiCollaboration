@@ -133,46 +133,50 @@ export default function RightDrawer() {
   if (activeRightPanel !== "AI_COPILOT") return null;
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-40 w-full sm:w-[320px] lg:static border-l border-border bg-card flex flex-col h-full shrink-0 animate-in slide-in-from-right duration-200">
+    <aside className="fixed inset-y-0 right-0 z-40 w-full sm:w-[340px] lg:static border-l border-border bg-white flex flex-col h-full shrink-0 animate-in slide-in-from-right duration-200">
       {/* Header */}
-      <div className="h-12 border-b border-border px-4 flex items-center justify-between shrink-0 bg-zinc-50/50">
-        <div className="flex items-center gap-2 select-none">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5 text-purple-600 animate-pulse">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
-          </svg>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-700">AI Copilot</span>
+      <div className="h-12 border-b border-border px-5 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5 select-none">
+          <div className="h-6 w-6 rounded-lg bg-violet-50 border border-violet-200 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-3.5 h-3.5 text-violet-600">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-zinc-900">CollabAI</p>
+          </div>
         </div>
         <button
           onClick={() => setRightPanel(null)}
-          className="text-zinc-400 hover:text-zinc-800 cursor-pointer transition-colors p-1"
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-colors"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.2" stroke="currentColor" className="w-3.5 h-3.5">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.2" stroke="currentColor" className="w-4 h-4">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
 
       {/* Message Stream */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-zinc-50/50">
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex flex-col space-y-1 ${msg.sender === "AI" ? "items-start" : "items-end"}`}
+            className={`flex flex-col gap-1 ${msg.sender === "AI" ? "items-start" : "items-end"}`}
           >
-            <div className="flex items-center gap-1.5 text-[8px] font-bold text-zinc-450 uppercase tracking-widest select-none">
+            <div className="flex items-center gap-1.5 select-none">
               {msg.sender === "AI" ? (
                 <>
-                  <div className="h-3.5 w-3.5 rounded-full bg-purple-50 text-[7px] flex items-center justify-center text-purple-600 font-black border border-purple-200">AI</div>
-                  <span>CollabAI</span>
+                  <div className="h-4 w-4 rounded bg-violet-100 text-[8px] flex items-center justify-center text-violet-600 font-bold">AI</div>
+                  <span className="text-xs text-zinc-400 font-medium">CollabAI</span>
                 </>
               ) : (
-                <span>{msg.sender}</span>
+                <span className="text-xs text-zinc-400 font-medium">{msg.sender}</span>
               )}
             </div>
             <div
-              className={`text-xs max-w-[90%] rounded-xl p-3 leading-relaxed border transition-all ${msg.sender === "AI"
-                  ? "bg-zinc-50 border-border text-zinc-650 shadow-xs"
-                  : "bg-primary text-white border-transparent font-medium shadow-xs"
+              className={`text-sm max-w-[88%] rounded-2xl px-4 py-3 leading-relaxed ${msg.sender === "AI"
+                  ? "bg-white border border-border text-zinc-700 shadow-sm"
+                  : "bg-primary text-white font-medium"
                 }`}
             >
               {msg.text}
@@ -181,13 +185,15 @@ export default function RightDrawer() {
         ))}
 
         {isThinking && (
-          <div className="flex flex-col space-y-1 items-start animate-pulse">
-            <div className="flex items-center gap-1.5 text-[8px] font-bold text-zinc-450 uppercase tracking-widest">
-              <div className="h-3.5 w-3.5 rounded-full bg-purple-50 text-[7px] flex items-center justify-center text-purple-600 font-black border border-purple-200">AI</div>
-              <span>CollabAI</span>
+          <div className="flex flex-col gap-1 items-start">
+            <div className="flex items-center gap-1.5">
+              <div className="h-4 w-4 rounded bg-violet-100 text-[8px] flex items-center justify-center text-violet-600 font-bold">AI</div>
+              <span className="text-xs text-zinc-400 font-medium">CollabAI</span>
             </div>
-            <div className="text-[10px] text-zinc-500 italic bg-zinc-50 border border-border rounded-xl p-2.5">
-              Thinking...
+            <div className="bg-white border border-border rounded-2xl px-4 py-3 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+              <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+              <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "300ms" }} />
             </div>
           </div>
         )}
@@ -196,15 +202,27 @@ export default function RightDrawer() {
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSend} className="p-4 border-t border-border bg-zinc-50/50 shrink-0">
-        <input
-          type="text"
-          placeholder="Ask Copilot..."
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          disabled={isThinking}
-          className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs text-foreground placeholder:text-zinc-400 outline-none focus:border-zinc-400 transition-all"
-        />
+      <form onSubmit={handleSend} className="p-4 border-t border-border bg-white shrink-0">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Ask CollabAI anything..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            disabled={isThinking}
+            className="ac-input flex-1 h-10 text-sm"
+          />
+          <button
+            type="submit"
+            disabled={isThinking || !inputValue.trim()}
+            className="btn-primary h-10 w-10 flex items-center justify-center px-0 shrink-0"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+            </svg>
+          </button>
+        </div>
+        <p className="text-xs text-zinc-400 mt-2 text-center">CollabAI can make mistakes. Verify important info.</p>
       </form>
     </aside>
   );

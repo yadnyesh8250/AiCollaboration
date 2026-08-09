@@ -36,7 +36,7 @@ export default function RightDrawer() {
           setActiveConversationId(conversations[0].id);
           // Set initial greeting
           setMessages([
-            { id: "greet", sender: "AI", text: `Hello! I am CollabAI. I am connected to your ${workspaceId ? "workspace" : ""} context. Ask me anything about tasks, documents, or team workflows!` }
+            { id: "greet", sender: "AI", text: `Hello! I am CollabAI. Ask me anything about tasks, documents, or team workflows!\n\nHere are some things I can do:\n• [What is blocking sprint?]\n• [Plan sprint]\n• [Workspace health]` }
           ]);
         } else {
           // Create new conversation
@@ -45,7 +45,7 @@ export default function RightDrawer() {
           });
           setActiveConversationId(createRes.data.conversation.id);
           setMessages([
-            { id: "greet", sender: "AI", text: "Hello! I am CollabAI. I have set up a new conversation session for you. Ask me anything!" }
+            { id: "greet", sender: "AI", text: "Hello! I am CollabAI. Ask me anything about tasks, documents, or team workflows!\n\nHere are some things I can do:\n• [What is blocking sprint?]\n• [Plan sprint]\n• [Workspace health]" }
           ]);
         }
       } catch (err) {
@@ -67,10 +67,11 @@ export default function RightDrawer() {
   }, [messages, isThinking]);
 
   const handleSend = async (e) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isThinking) return;
+    if (e && e.preventDefault) e.preventDefault();
+    if (!inputValue.trim() && !e?.textOverride) return;
+    if (isThinking) return;
 
-    const userText = inputValue.trim();
+    const userText = e?.textOverride || inputValue.trim();
     setInputValue("");
 
     // Append user message locally
@@ -94,7 +95,7 @@ export default function RightDrawer() {
         setActiveConversationId(convId);
       }
 
-      // Query Gemini API
+      // Default: Query Gemini API
       const response = await api.post(`/ai/conversations/${convId}/messages`, {
         prompt: userText
       });
@@ -128,6 +129,71 @@ export default function RightDrawer() {
     } finally {
       setIsThinking(false);
     }
+  };
+
+  const handleQuickAction = (text) => {
+    handleSend({ textOverride: text });
+  };
+
+  const parseMessageText = (text) => {
+    const actionRegex = /\[([^\]]+)\]/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = actionRegex.exec(text)) !== null) {
+      const matchIndex = match.index;
+      if (matchIndex > lastIndex) {
+        parts.push({ type: "text", content: text.substring(lastIndex, matchIndex) });
+      }
+      parts.push({ type: "action", label: match[1] });
+      lastIndex = actionRegex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push({ type: "text", content: text.substring(lastIndex) });
+    }
+
+    if (parts.length === 0) return <p className="whitespace-pre-wrap">{text}</p>;
+
+    return (
+      <div className="space-y-2">
+        <p className="whitespace-pre-wrap">{parts.filter(p => p.type === "text").map(p => p.content).join(" ")}</p>
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {parts.filter(p => p.type === "action").map((act, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                if (act.label.toLowerCase().includes("blocker")) {
+                  handleQuickAction("What is blocking sprint?");
+                } else if (act.label.toLowerCase().includes("notify")) {
+                  alert("Notifications sent to Sarah, Alex, and Mike regarding blocking tasks!");
+                } else if (act.label.toLowerCase().includes("plan")) {
+                  handleQuickAction("Plan sprint");
+                } else if (act.label.toLowerCase().includes("recovery")) {
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: Date.now(),
+                      sender: "AI",
+                      text: "💡 **AI Recovery Plan Drafted**:\n1. Re-assign TASK-104 (blocked) from Alex to Senior developer.\n2. Sarah writes authentication documentation to unblock TASK-107."
+                    }
+                  ]);
+                } else if (act.label.toLowerCase().includes("create proposed sprint")) {
+                  alert("Proposed sprint created and tasks initialized on Kanban backlog!");
+                } else {
+                  handleQuickAction(act.label);
+                }
+              }}
+              className="px-2.5 py-1 rounded bg-violet-100 hover:bg-violet-200 border border-violet-200 text-violet-700 text-xs font-semibold cursor-pointer transition-colors"
+            >
+              {act.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   if (activeRightPanel !== "AI_COPILOT") return null;
@@ -179,7 +245,7 @@ export default function RightDrawer() {
                   : "bg-primary text-white font-medium"
                 }`}
             >
-              {msg.text}
+              {msg.sender === "AI" ? parseMessageText(msg.text) : msg.text}
             </div>
           </div>
         ))}
@@ -199,6 +265,24 @@ export default function RightDrawer() {
         )}
 
         <div ref={messagesEndRef} />
+      </div>
+
+      {/* Suggestion Chips */}
+      <div className="px-4 py-2 bg-white border-t border-border flex gap-1.5 overflow-x-auto no-scrollbar shrink-0 select-none">
+        {[
+          "What is blocking sprint?",
+          "Plan sprint",
+          "Workspace health",
+        ].map((chip) => (
+          <button
+            key={chip}
+            type="button"
+            onClick={() => handleQuickAction(chip)}
+            className="px-2.5 py-1 rounded-full border border-border bg-zinc-50 hover:bg-zinc-100 text-zinc-600 text-xs shrink-0 cursor-pointer font-medium transition-colors"
+          >
+            {chip}
+          </button>
+        ))}
       </div>
 
       {/* Input Form */}

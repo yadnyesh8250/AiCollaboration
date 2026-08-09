@@ -61,12 +61,13 @@ function WorkspaceRedirect() {
     );
   }
 
-  if (orgs.length === 0) {
-    return <Navigate to="/create-org" replace />;
+  if (orgs.length === 0 || workspaces.length === 0) {
+    return <Navigate to="/dashboard" replace />;
   }
 
-  if (workspaces.length === 0) {
-    return <Navigate to={`/create-workspace?orgId=${activeOrgId}&orgSlug=${orgs[0]?.slug}`} replace />;
+  // If user has multiple workspaces, send to dashboard list to choose, otherwise enter the single workspace
+  if (workspaces.length > 1) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <Navigate to={`/workspaces/${workspaces[0].id}`} replace />;
@@ -146,6 +147,16 @@ export default function AppRoutes() {
           }
         />
       </Route>
+
+      {/* Workspace Selector Dashboard Portal */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Protected Dashboard Route redirecting to default workspace */}
       <Route

@@ -12,6 +12,8 @@ export default function WorkspaceChat() {
 
   const [inputValue, setInputValue] = useState("");
   const [aiTyping, setAiTyping] = useState(false);
+  const [detectedTask, setDetectedTask] = useState(null);
+  const [isExtractingTask, setIsExtractingTask] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -253,6 +255,53 @@ export default function WorkspaceChat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Real-time task extraction detection in input
+  useEffect(() => {
+    const val = inputValue.trim();
+    if (val.length < 8) {
+      setDetectedTask(null);
+      return;
+    }
+
+    const taskTriggers = ["@ ", "@alex", "@sarah", "please fix", "implement", "update", "due by", "by friday", "task:", "todo:"];
+    const isTaskLike = taskTriggers.some((trig) => val.toLowerCase().includes(trig));
+
+    if (isTaskLike && !detectedTask) {
+      const timer = setTimeout(async () => {
+        try {
+          setIsExtractingTask(true);
+          const res = await api.post(`/workspaces/${workspaceId}/ai/extract-task`, { text: val });
+          if (res.data.success && res.data.data) {
+            setDetectedTask(res.data.data);
+          }
+        } catch (err) {
+          // ignore
+        } finally {
+          setIsExtractingTask(false);
+        }
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [inputValue, workspaceId]);
+
+  const createDetectedTaskMutation = useMutation({
+    mutationFn: () =>
+      api.post(`/workspaces/${workspaceId}/tasks`, {
+        title: detectedTask.title,
+        priority: detectedTask.priority || "MEDIUM",
+        assignedTo: detectedTask.assignee?.id || null,
+        status: "TODO",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId] });
+      // Post confirmation message in channel
+      sendMessageMutation.mutate({
+        content: `⚡ **Task Created**: "${detectedTask.title}"${detectedTask.assignee ? ` assigned to @${detectedTask.assignee.username}` : ""}`,
+      });
+      setDetectedTask(null);
+    },
+  });
 
   const handleSend = (e) => {
     e.preventDefault();
@@ -645,6 +694,43 @@ export default function WorkspaceChat() {
 
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Floating Smart Task Extraction Banner */}
+        {detectedTask && (
+          <div className="mx-6 mb-2 bg-gradient-to-r from-teal-500/10 via-teal-50 to-white border border-teal-300 rounded-xl p-3 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150 shadow-sm">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-sm">✦</span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-teal-900 truncate">
+                  Task detected: <span className="font-semibold text-zinc-900">"{detectedTask.title}"</span>
+                </p>
+                <p className="text-[11px] text-teal-700 font-medium">
+                  {detectedTask.assignee ? `Assigned → @${detectedTask.assignee.username}` : "Unassigned"}
+                  {detectedTask.dueDateStr && ` · Due → ${detectedTask.dueDateStr}`}
+                  <span className="ml-1 text-zinc-400">({detectedTask.priority})</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => createDetectedTaskMutation.mutate()}
+                disabled={createDetectedTaskMutation.isPending}
+                className="h-7 px-3 bg-primary hover:bg-[#087F66] text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition-colors"
+              >
+                {createDetectedTaskMutation.isPending ? "Creating..." : "Create Task ✨"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetectedTask(null)}
+                className="text-xs text-zinc-400 hover:text-zinc-700 p-1"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Message Composer — Slack style */}
         <form onSubmit={handleSend} className="px-6 pb-5 pt-3 border-t border-border bg-white shrink-0">

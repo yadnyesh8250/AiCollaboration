@@ -19,10 +19,16 @@ import { protect } from "../middleware/auth.middleware.js";
 import { requireWorkspaceRole } from "../middleware/rbac.middleware.js";
 import { aiLimiter } from "../middleware/rateLimit.middleware.js";
 
+import aiWorkflowRoutes from "./aiWorkflow.routes.js";
+
 const router = Router({ mergeParams: true });
 
 router.use(protect);
 router.use(aiLimiter);
+
+// Mount Workflow & Intelligence endpoints
+router.use("/workflows", aiWorkflowRoutes);
+router.use("/", aiWorkflowRoutes);
 
 // Nested routes under /api/workspaces/:workspaceId/ai
 // Conversations & Config require MEMBER/ADMIN/OWNER access

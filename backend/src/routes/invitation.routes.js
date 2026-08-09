@@ -1,7 +1,8 @@
 import { Router } from "express";
 import {
   createInvite,
-  acceptInvite
+  acceptInvite,
+  listPendingInvites
 } from "../controllers/invitation.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { requireWorkspaceRole } from "../middleware/rbac.middleware.js";
@@ -12,6 +13,9 @@ import { requireWorkspaceRole } from "../middleware/rbac.middleware.js";
 
 const router = Router();
 router.use(protect);
+
+// GET /api/invites/pending
+router.get("/pending", listPendingInvites);
 
 // POST /api/invites/accept
 router.post("/accept", acceptInvite);

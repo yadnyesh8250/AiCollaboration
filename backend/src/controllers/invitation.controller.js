@@ -171,3 +171,30 @@ export const acceptInvite = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error." });
   }
 };
+
+export const listPendingInvites = async (req, res) => {
+  try {
+    const invites = await prisma.workspaceInvite.findMany({
+      where: {
+        email: req.user.email,
+        status: "PENDING"
+      },
+      include: {
+        workspace: {
+          select: {
+            name: true,
+            organization: { select: { name: true } }
+          }
+        },
+        invitedBy: {
+          select: { username: true }
+        }
+      }
+    });
+
+    return res.json({ success: true, invites });
+  } catch (err) {
+    console.error("[listPendingInvites]", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};

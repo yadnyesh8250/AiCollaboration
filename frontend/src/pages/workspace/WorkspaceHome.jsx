@@ -5,6 +5,12 @@ import { api } from "../../services/api/client";
 import { useAuthStore } from "../../stores/authStore";
 import { useUIStore } from "../../stores/uiStore";
 
+import MeetingToWorkflowModal from "../../components/workspace/MeetingToWorkflowModal";
+import WorkspaceHealthCard from "../../components/workspace/WorkspaceHealthCard";
+import SprintPlannerModal from "../../components/workspace/SprintPlannerModal";
+import GitHubIntegrationModal from "../../components/workspace/GitHubIntegrationModal";
+import WorkspaceMemoryModal from "../../components/workspace/WorkspaceMemoryModal";
+
 export default function WorkspaceHome() {
   const { workspaceId } = useParams();
   const { user } = useAuthStore();
@@ -23,6 +29,11 @@ export default function WorkspaceHome() {
   // Modal states
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
+  const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
+  const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
+  const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
+
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDesc, setTaskDesc] = useState("");
   const [taskPriority, setTaskPriority] = useState("MEDIUM");
@@ -136,37 +147,60 @@ export default function WorkspaceHome() {
             </p>
           </div>
 
-          {/* Quick actions */}
-          <div className="flex items-center gap-2">
+          {/* Flagship AI Workflow Quick Actions */}
+          <div className="flex items-center flex-wrap gap-2">
+            <button
+              onClick={() => setIsMeetingModalOpen(true)}
+              className="h-9 px-3.5 rounded-lg bg-teal-50 border border-teal-200 hover:bg-teal-100 text-xs font-semibold text-teal-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+              title="AI Meeting -> Tasks -> Documentation Pipeline"
+            >
+              <span>⚡</span>
+              <span>AI Meeting Pipeline</span>
+            </button>
+
+            <button
+              onClick={() => setIsSprintModalOpen(true)}
+              className="h-9 px-3 rounded-lg bg-white border border-border hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>🚀</span>
+              <span>Sprint Planner</span>
+            </button>
+
+            <button
+              onClick={() => setIsGitHubModalOpen(true)}
+              className="h-9 px-3 rounded-lg bg-white border border-border hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>🐙</span>
+              <span>GitHub PR</span>
+            </button>
+
+            <button
+              onClick={() => setIsMemoryModalOpen(true)}
+              className="h-9 px-3 rounded-lg bg-violet-50 border border-violet-200 hover:bg-violet-100 text-xs font-semibold text-violet-700 transition-all cursor-pointer flex items-center gap-1.5"
+              title="Workspace Memory Vault"
+            >
+              <span>🧠</span>
+              <span>Memory Vault</span>
+            </button>
+
             <button
               onClick={() => setIsTaskModalOpen(true)}
-              className="h-9 px-4 rounded-lg border border-border bg-white hover:bg-zinc-50 hover:border-zinc-300 text-sm font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-2"
+              className="h-9 px-3 rounded-lg border border-border bg-white hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 text-zinc-400">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              New Task
+              + Task
             </button>
-            <button
-              onClick={() => setIsDocModalOpen(true)}
-              className="h-9 px-4 rounded-lg border border-border bg-white hover:bg-zinc-50 hover:border-zinc-300 text-sm font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4 text-zinc-400">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              New Doc
-            </button>
+
             <button
               onClick={() => setRightPanel(activeRightPanel === "AI_COPILOT" ? null : "AI_COPILOT")}
-              className="h-9 px-4 rounded-lg bg-primary hover:bg-[#087F66] text-white text-sm font-medium transition-all cursor-pointer flex items-center gap-2"
+              className="h-9 px-4 rounded-lg bg-primary hover:bg-[#087F66] text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
-              </svg>
-              Ask CollabAI
+              CollabAI →
             </button>
           </div>
         </div>
+
+        {/* ── Workspace Health & Proactive AI Insights ── */}
+        <WorkspaceHealthCard onOpenMeetingModal={() => setIsMeetingModalOpen(true)} />
 
         {/* ── Stats Row ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -479,6 +513,12 @@ export default function WorkspaceHome() {
           </div>
         </div>
       )}
+
+      {/* ── Flagship Modals ── */}
+      <MeetingToWorkflowModal isOpen={isMeetingModalOpen} onClose={() => setIsMeetingModalOpen(false)} />
+      <SprintPlannerModal isOpen={isSprintModalOpen} onClose={() => setIsSprintModalOpen(false)} />
+      <GitHubIntegrationModal isOpen={isGitHubModalOpen} onClose={() => setIsGitHubModalOpen(false)} />
+      <WorkspaceMemoryModal isOpen={isMemoryModalOpen} onClose={() => setIsMemoryModalOpen(false)} />
     </div>
   );
 }

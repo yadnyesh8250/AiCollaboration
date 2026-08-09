@@ -6,6 +6,7 @@ import { useUIStore } from "../../stores/uiStore";
 import Sidebar from "../workspace/Sidebar";
 import Topbar from "../workspace/Topbar";
 import RightDrawer from "../workspace/RightDrawer";
+import { getSocket, connectSocket } from "../../services/socket/connection";
 
 export default function WorkspaceLayout() {
   const { workspaceId } = useParams();
@@ -26,6 +27,46 @@ export default function WorkspaceLayout() {
       navigate("/", { replace: true });
     }
   }, [error, navigate]);
+
+  // Live socket presence tracking
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    // Connect socket if not connected
+    const socket = connectSocket() || getSocket();
+    if (!socket) return;
+
+    // Join workspace room
+    socket.emit("joinWorkspace", workspaceId);
+
+    return () => {
+      socket.emit("leaveWorkspace", workspaceId);
+    };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const socket = getSocket();
+    if (!socket) return;
+
+    // Determine current page & channel from URL path
+    let page = "Dashboard";
+    let channelId = null;
+
+    if (location.pathname.includes("/tasks")) {
+      page = "Tasks";
+    } else if (location.pathname.includes("/chat") || location.pathname.includes("/channels")) {
+      page = "Chat";
+      const parts = location.pathname.split("/");
+      channelId = parts[parts.length - 1]; // slug or id
+    } else if (location.pathname.includes("/docs")) {
+      page = "Docs";
+    } else if (location.pathname.includes("/settings")) {
+      page = "Settings";
+    }
+
+    socket.emit("page:change", { workspaceId, page, channelId });
+  }, [workspaceId, location.pathname]);
 
   // Auto-collapse sidebar on small screens
   useEffect(() => {

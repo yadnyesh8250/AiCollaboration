@@ -63,10 +63,32 @@ export const buildRAGContext = async ({ workspaceId, channelId, query }) => {
     }
   }
 
-  // 4. Tasks Context (Safe placeholder until Phase 5 Task Module is built)
-  // We check if we can safely retrieve tasks, otherwise mock empty list.
-  contextParts.push("\n### WORKSPACE TASKS CONTEXT");
-  contextParts.push("- No active tasks matching the query are currently indexed.");
+  // 4. Tasks Context (Query real active tasks from database)
+  try {
+    const tasks = await prisma.task.findMany({
+      where: { workspaceId },
+      take: 15,
+      include: {
+        assignee: { select: { username: true } },
+        sprint: { select: { name: true } }
+      }
+    });
+
+    if (tasks.length > 0) {
+      contextParts.push("\n### WORKSPACE TASKS CONTEXT");
+      tasks.forEach(t => {
+        const assigneeStr = t.assignee ? `@${t.assignee.username}` : "Unassigned";
+        const sprintStr = t.sprint ? `Sprint: ${t.sprint.name}` : "No Sprint";
+        const dueStr = t.dueDate ? `Due: ${new Date(t.dueDate).toLocaleDateString()}` : "No due date";
+        contextParts.push(`- Task: "${t.title}" | Status: ${t.status} | Assignee: ${assigneeStr} | Priority: ${t.priority} | ${sprintStr} | ${dueStr}`);
+      });
+    } else {
+      contextParts.push("\n### WORKSPACE TASKS CONTEXT");
+      contextParts.push("- No active tasks are currently indexed in this workspace.");
+    }
+  } catch (err) {
+    console.error("Failed to query tasks for RAG context:", err);
+  }
 
   return contextParts.join("\n");
 };

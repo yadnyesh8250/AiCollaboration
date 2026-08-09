@@ -17,6 +17,7 @@ export default function WorkspaceDocs() {
   const [docTitle, setDocTitle] = useState("");
   const [docVisibility, setDocVisibility] = useState("WORKSPACE");
   const [localBlocks, setLocalBlocks] = useState([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // Fetch documents list
   const { data: documents = [], isLoading } = useQuery({
@@ -85,6 +86,35 @@ export default function WorkspaceDocs() {
     },
     onError: (err) => {
       alert(err.response?.data?.message || "Failed to save document blocks.");
+    }
+  });
+
+  // Version History Queries & Mutations
+  const { data: versions = [], refetch: refetchVersions } = useQuery({
+    queryKey: ["documentVersions", selectedDoc?.id],
+    queryFn: () => api.get(`/documents/${selectedDoc.id}/versions`).then((res) => res.data.versions),
+    enabled: !!selectedDoc?.id && isHistoryOpen,
+  });
+
+  const createSnapshotMutation = useMutation({
+    mutationFn: () => api.post(`/documents/${selectedDoc?.id}/versions`),
+    onSuccess: () => {
+      refetchVersions();
+      alert("Version snapshot saved successfully!");
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || "Failed to create version snapshot.");
+    }
+  });
+
+  const restoreVersionMutation = useMutation({
+    mutationFn: (versionId) => api.post(`/documents/${selectedDoc?.id}/versions/${versionId}/restore`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document", selectedDoc?.id] });
+      alert("Document restored successfully!");
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || "Failed to restore version.");
     }
   });
 
@@ -205,6 +235,26 @@ export default function WorkspaceDocs() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className={`h-9 px-3.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                isHistoryOpen
+                  ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
+                  : "bg-white border-border text-zinc-650 hover:bg-zinc-50"
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+              </svg>
+              History
+            </button>
+            <button
+              onClick={() => createSnapshotMutation.mutate()}
+              disabled={createSnapshotMutation.isPending}
+              className="h-9 px-3 border border-border bg-white hover:bg-zinc-50 rounded-lg text-xs font-semibold text-zinc-650 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+            >
+              Snapshot
+            </button>
+            <button
               onClick={() => {
                 if (confirm("Are you sure you want to delete this document?")) {
                   deleteDocMutation.mutate();
@@ -224,8 +274,10 @@ export default function WorkspaceDocs() {
           </div>
         </div>
 
-        {/* Notion-style Content Area */}
-        <div className="flex-1 overflow-y-auto no-scrollbar">
+        {/* E2E Split Screen Layout for Editor & History */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Notion-style Content Area */}
+          <div className="flex-1 overflow-y-auto no-scrollbar border-r border-border">
           <div className="max-w-2xl mx-auto px-8 py-10 space-y-2 relative">
             {localBlocks.length === 0 && (
               <div className="py-12 text-center">
@@ -361,7 +413,57 @@ export default function WorkspaceDocs() {
             </div>
           </div>
         </div>
+
+        {/* Version History Sidebar */}
+        {isHistoryOpen && (
+          <div className="w-[280px] bg-zinc-50 border-l border-border shrink-0 flex flex-col h-full animate-in slide-in-from-right duration-200">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-white shrink-0">
+              <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-wider">Version History</h4>
+              <button
+                onClick={() => setIsHistoryOpen(false)}
+                className="p-1 rounded text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 cursor-pointer text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
+              {versions.length === 0 ? (
+                <p className="text-xs text-zinc-400 text-center py-8">No saved snapshots yet.</p>
+              ) : (
+                versions.map((ver) => (
+                  <div
+                    key={ver.id}
+                    className="p-3 rounded-lg border border-border bg-white hover:border-primary/20 hover:shadow-sm transition-all flex flex-col gap-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-800">Version {ver.version}</span>
+                      <span className="text-[10px] text-zinc-400">
+                        {new Date(ver.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500">
+                      Saved by @{ver.editor?.username || "member"}
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to restore to Version ${ver.version}?`)) {
+                          restoreVersionMutation.mutate(ver.id);
+                        }
+                      }}
+                      disabled={restoreVersionMutation.isPending}
+                      className="w-full h-7 rounded border border-violet-200 hover:bg-violet-50 text-[10px] font-semibold text-violet-600 transition-colors cursor-pointer"
+                    >
+                      {restoreVersionMutation.isPending ? "Restoring..." : "Restore"}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
+    </div>
     );
   }
 

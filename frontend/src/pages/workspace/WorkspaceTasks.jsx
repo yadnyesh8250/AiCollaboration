@@ -118,6 +118,13 @@ export default function WorkspaceTasks() {
 
   const getTasksByStatus = (status) => (Array.isArray(tasks) ? tasks.filter((t) => t.status === status) : []);
 
+  const handleDrop = (e, status) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("text/plain");
+    if (!taskId) return;
+    updateTaskMutation.mutate({ taskId, data: { status } });
+  };
+
   const FormLabel = ({ children }) => (
     <label className="block text-xs font-medium text-zinc-600 mb-1.5">{children}</label>
   );
@@ -158,7 +165,12 @@ export default function WorkspaceTasks() {
               {COLUMNS.map((col) => {
                 const colTasks = getTasksByStatus(col.id);
                 return (
-                  <div key={col.id} className="flex flex-col flex-1 min-w-[220px] max-w-xs bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden">
+                   <div
+                    key={col.id}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleDrop(e, col.id)}
+                    className="flex flex-col flex-1 min-w-[220px] max-w-xs bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden"
+                  >
                     {/* Column header */}
                     <div className={`flex items-center justify-between px-4 py-3 border-b ${col.header} shrink-0`}>
                       <div className="flex items-center gap-2">
@@ -183,6 +195,8 @@ export default function WorkspaceTasks() {
                           return (
                             <div
                               key={task.id}
+                              draggable
+                              onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
                               onClick={() => openEditModal(task)}
                               className="bg-white border border-border rounded-xl p-4 space-y-3 cursor-pointer hover:border-zinc-300 hover:shadow-sm transition-all duration-150 group"
                             >

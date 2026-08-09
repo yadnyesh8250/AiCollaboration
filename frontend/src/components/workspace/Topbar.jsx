@@ -1,7 +1,10 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useLocation, useParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUIStore } from "../../stores/uiStore";
 import { useAuthStore } from "../../stores/authStore";
+import { api } from "../../services/api/client";
+import { getSocket } from "../../services/socket/connection";
 
 const routeLabels = {
   "": "Home",
@@ -26,6 +29,29 @@ export default function Topbar() {
   const pathSegments = location.pathname.split("/").filter(Boolean);
   const currentSection = pathSegments.length > 2 ? pathSegments[pathSegments.length - 1] : "";
   const sectionLabel = routeLabels[currentSection] ?? "Workspace";
+
+  const queryClient = useQueryClient();
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api.get("/notifications").then((res) => res.data.notifications || []),
+  });
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleNewNotification = () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    };
+
+    socket.on("notification:new", handleNewNotification);
+
+    return () => {
+      socket.off("notification:new", handleNewNotification);
+    };
+  }, [queryClient]);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const isAIOpen = activeRightPanel === "AI_COPILOT";
 
@@ -93,11 +119,26 @@ export default function Topbar() {
         </button>
 
         {/* Notifications */}
-        <button className="h-8 w-8 rounded-lg flex items-center justify-center border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 hover:border-zinc-300 transition-all cursor-pointer relative">
+        <button
+          className="h-8 w-8 rounded-lg flex items-center justify-center border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 hover:border-zinc-300 transition-all cursor-pointer relative"
+          title={`${unreadCount} unread notifications`}
+          onClick={() => {
+            // Instantly mark all as read for E2E demo simplicity, or let them know
+            if (unreadCount > 0) {
+              api.post("/notifications/mark-read").then(() => {
+                queryClient.invalidateQueries({ queryKey: ["notifications"] });
+              }).catch(err => console.error(err));
+            }
+          }}
+        >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
           </svg>
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center animate-pulse">
+              {unreadCount}
+            </span>
+          )}
         </button>
 
         {/* User avatar */}

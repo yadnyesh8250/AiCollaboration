@@ -47,6 +47,70 @@ export default function Sidebar() {
     }
   }, [user]);
 
+  const [onlineUsers, setOnlineUsers] = useState({});
+
+  const { data: members = [] } = useQuery({
+    queryKey: ["workspaceMembers", workspaceId],
+    queryFn: () => api.get(`/workspaces/${workspaceId}/members`).then((res) => res.data.members),
+    enabled: !!workspaceId,
+  });
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleUserOnline = ({ userId }) => {
+      setOnlineUsers((prev) => ({ ...prev, [userId]: { status: "ONLINE", currentPage: "Dashboard" } }));
+    };
+
+    const handleUserOffline = ({ userId }) => {
+      setOnlineUsers((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    };
+
+    const handlePresenceUpdate = ({ userId, currentPage, status }) => {
+      setOnlineUsers((prev) => ({ ...prev, [userId]: { status, currentPage } }));
+    };
+
+    const handleUserJoin = ({ userId, currentPage }) => {
+      setOnlineUsers((prev) => ({ ...prev, [userId]: { status: "ONLINE", currentPage } }));
+    };
+
+    const handleUserLeave = ({ userId }) => {
+      setOnlineUsers((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    };
+
+    socket.on("userOnline", handleUserOnline);
+    socket.on("userOffline", handleUserOffline);
+    socket.on("presence:update", handlePresenceUpdate);
+    socket.on("user:join", handleUserJoin);
+    socket.on("user:leave", handleUserLeave);
+
+    api.get(`/workspaces/${workspaceId}/members`).then(res => {
+      const activeMembers = res.data.members || [];
+      activeMembers.forEach(m => {
+        if (m.user && m.user.status === "ONLINE") {
+          setOnlineUsers((prev) => ({ ...prev, [m.user.id]: { status: "ONLINE", currentPage: "Dashboard" } }));
+        }
+      });
+    }).catch(err => console.error(err));
+
+    return () => {
+      socket.off("userOnline", handleUserOnline);
+      socket.off("userOffline", handleUserOffline);
+      socket.off("presence:update", handlePresenceUpdate);
+      socket.off("user:join", handleUserJoin);
+      socket.off("user:leave", handleUserLeave);
+    };
+  }, [workspaceId]);
+
   // Queries
   const { data: orgs = [] } = useQuery({
     queryKey: ["organizations"],
@@ -298,13 +362,47 @@ export default function Sidebar() {
           </nav>
 
           {/* Team section */}
-          <SectionLabel>Team</SectionLabel>
-          <nav className="space-y-0.5">
-            <NavItem path="/members" icon={
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-              </svg>
-            } label="Members" />
+          <SectionLabel>Team Members</SectionLabel>
+          <nav className="space-y-1 px-2 max-h-[140px] overflow-y-auto no-scrollbar">
+            {members.map((m) => {
+              const isOnline = !!onlineUsers[m.user.id];
+              const presenceInfo = onlineUsers[m.user.id];
+              const curPage = presenceInfo?.currentPage;
+              
+              return (
+                <div
+                  key={m.id}
+                  className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs transition-colors font-medium select-none ${
+                    m.user.id === user?.id ? "text-zinc-900 font-semibold" : "text-zinc-650"
+                  }`}
+                >
+                  <div className="relative shrink-0">
+                    {m.user.avatarUrl ? (
+                      <img src={m.user.avatarUrl} alt="avatar" className="h-5 w-5 rounded-full object-cover" />
+                    ) : (
+                      <div className="h-5 w-5 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-550 border border-zinc-200">
+                        {m.user.username.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    {isOnline && (
+                      <span className="absolute bottom-0 right-0 h-1.5 w-1.5 rounded-full bg-green-500 border border-white" />
+                    )}
+                  </div>
+                  {!isSidebarCollapsed && (
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate">
+                        {m.user.username}
+                        {curPage && curPage !== "Dashboard" && (
+                          <span className="text-[10px] text-zinc-400 font-normal ml-1">
+                            ({curPage.toLowerCase()})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </nav>
 
           {/* Settings section */}

@@ -178,3 +178,31 @@ export const deleteWorkspace = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error." });
   }
 }
+
+export const listUserWorkspaces = async (req, res) => {
+  try {
+    const memberships = await prisma.workspaceMember.findMany({
+      where: { userId: req.user.id },
+      include: {
+        workspace: {
+          include: {
+            organization: { select: { id: true, name: true, slug: true } },
+            _count: { select: { members: true } }
+          }
+        }
+      },
+      orderBy: { joinedAt: "desc" }
+    });
+
+    const workspaces = memberships.map(m => ({
+      ...m.workspace,
+      role: m.role,
+      memberCount: m.workspace._count.members
+    }));
+
+    return res.status(200).json({ success: true, workspaces });
+  } catch (err) {
+    console.error("[listUserWorkspaces]", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};

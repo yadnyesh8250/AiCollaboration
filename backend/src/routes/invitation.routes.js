@@ -2,7 +2,8 @@ import { Router } from "express";
 import {
   createInvite,
   acceptInvite,
-  listPendingInvites
+  listPendingInvites,
+  declineInvite
 } from "../controllers/invitation.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { requireWorkspaceRole } from "../middleware/rbac.middleware.js";
@@ -19,6 +20,9 @@ router.get("/pending", listPendingInvites);
 
 // POST /api/invites/accept
 router.post("/accept", acceptInvite);
+
+// POST /api/invites/decline
+router.post("/decline", declineInvite);
 
 // We can also define POST /api/invites/:workspaceId
 router.post("/:workspaceId", requireWorkspaceRole(["OWNER", "ADMIN"]), createInvite);

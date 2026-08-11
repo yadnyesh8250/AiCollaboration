@@ -4,7 +4,8 @@ import {
   listWorkspaces,
   getWorkspace,
   updateWorkspace,
-  deleteWorkspace
+  deleteWorkspace,
+  listUserWorkspaces
 } from "../controllers/workspace.controller.js";
 import {
   addMember,
@@ -30,9 +31,15 @@ const router = Router({ mergeParams: true });
 
 router.use(protect);
 
-// Workspace CRUD (nested under /api/organizations/:orgId/workspaces)
+// Workspace CRUD (nested under /api/organizations/:orgId/workspaces or flat under /api/workspaces)
 router.post("/", createWorkspace);
-router.get("/", listWorkspaces);
+router.get("/", (req, res, next) => {
+  if (req.params.orgId) {
+    return listWorkspaces(req, res, next);
+  } else {
+    return listUserWorkspaces(req, res, next);
+  }
+});
 
 // Channel routes (nested under /api/workspaces/:workspaceId/channels)
 router.use("/:workspaceId/channels", channelRoutes);

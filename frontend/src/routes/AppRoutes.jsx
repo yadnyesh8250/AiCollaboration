@@ -40,37 +40,28 @@ function PublicRoute({ children }) {
 
 // Dynamic workspace redirect component
 function WorkspaceRedirect() {
-  const { data: orgs = [], isLoading: loadingOrgs } = useQuery({
-    queryKey: ["organizations"],
-    queryFn: () => api.get("/organizations").then((res) => res.data.organizations),
+  const { data: workspaces = [], isLoading } = useQuery({
+    queryKey: ["allWorkspaces"],
+    queryFn: () => api.get("/workspaces").then((res) => res.data.workspaces || []),
   });
 
-  const activeOrgId = orgs[0]?.id;
-
-  const { data: workspaces = [], isLoading: loadingWorkspaces } = useQuery({
-    queryKey: ["workspaces", activeOrgId],
-    queryFn: () => api.get(`/organizations/${activeOrgId}/workspaces`).then((res) => res.data.workspaces),
-    enabled: !!activeOrgId,
-  });
-
-  if (loadingOrgs || (activeOrgId && loadingWorkspaces)) {
+  if (isLoading) {
     return (
-      <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-zinc-500 text-xs font-semibold animate-pulse">Loading active workspace...</div>
+      <div className="h-screen w-screen bg-zinc-50 flex items-center justify-center">
+        <div className="text-zinc-500 text-xs font-semibold animate-pulse">Loading workspace portal...</div>
       </div>
     );
   }
 
-  if (orgs.length === 0 || workspaces.length === 0) {
+  if (workspaces.length === 0) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // If user has multiple workspaces, send to dashboard list to choose, otherwise enter the single workspace
-  if (workspaces.length > 1) {
-    return <Navigate to="/dashboard" replace />;
+  if (workspaces.length === 1) {
+    return <Navigate to={`/workspaces/${workspaces[0].id}`} replace />;
   }
 
-  return <Navigate to={`/workspaces/${workspaces[0].id}`} replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 export default function AppRoutes() {

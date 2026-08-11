@@ -198,3 +198,39 @@ export const listPendingInvites = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error." });
   }
 };
+
+export const declineInvite = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: "Token is required." });
+    }
+
+    const invite = await prisma.workspaceInvite.findUnique({
+      where: { token }
+    });
+
+    if (!invite) {
+      return res.status(404).json({ success: false, message: "Invitation not found." });
+    }
+
+    if (invite.status !== "PENDING") {
+      return res.status(400).json({ success: false, message: `Invite is already ${invite.status.toLowerCase()}.` });
+    }
+
+    if (invite.email !== req.user.email) {
+      return res.status(403).json({ success: false, message: "This invite was not sent to your email address." });
+    }
+
+    await prisma.workspaceInvite.update({
+      where: { id: invite.id },
+      data: { status: "DECLINED" }
+    });
+
+    return res.json({ success: true, message: "Invitation declined successfully." });
+  } catch (err) {
+    console.error("[declineInvite]", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};

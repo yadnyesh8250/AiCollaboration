@@ -23,7 +23,7 @@ export default function WorkspaceLayout() {
   });
 
   useEffect(() => {
-    if (error && error.response?.status === 403) {
+    if (error && (error.response?.status === 403 || error.response?.status === 404)) {
       navigate("/", { replace: true });
     }
   }, [error, navigate]);

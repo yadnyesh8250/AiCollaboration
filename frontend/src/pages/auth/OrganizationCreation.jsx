@@ -84,19 +84,19 @@ export default function OrganizationCreation() {
   return (
     <div className="space-y-6 animate-in fade-in duration-200 selection:bg-primary/20 selection:text-white">
       <div className="flex flex-col items-center space-y-2 text-center select-none">
-        <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-widest bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-900">
+        <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-widest bg-zinc-100 px-2 py-0.5 rounded-full border border-zinc-200">
           Step 1: Setup Workspace Location
         </div>
-        <h3 className="text-xl font-bold tracking-tight text-white pt-1">
+        <h3 className="text-xl font-bold tracking-tight text-zinc-900 pt-1">
           Welcome to A-Collab
         </h3>
-        <p className="text-[11px] text-zinc-550 font-medium">
+        <p className="text-[11px] text-zinc-400 font-medium">
           Join an active organization workspace or spin up a new container
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex rounded-lg bg-zinc-950 p-1 border border-zinc-900 select-none">
+      <div className="flex rounded-lg bg-zinc-100 p-1 border border-zinc-200 select-none">
         <button
           onClick={() => {
             setActiveTab("join");
@@ -104,8 +104,8 @@ export default function OrganizationCreation() {
           }}
           className={`flex-1 rounded-md py-1.5 text-center text-xs font-semibold cursor-pointer transition-all ${
             activeTab === "join"
-              ? "bg-zinc-900 text-white border border-zinc-800"
-              : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+              ? "bg-white text-zinc-800 border border-zinc-200/50 shadow-sm"
+              : "text-zinc-500 hover:text-zinc-700 border border-transparent"
           }`}
         >
           Join Existing
@@ -114,8 +114,8 @@ export default function OrganizationCreation() {
           onClick={() => setActiveTab("create")}
           className={`flex-1 rounded-md py-1.5 text-center text-xs font-semibold cursor-pointer transition-all ${
             activeTab === "create"
-              ? "bg-zinc-900 text-white border border-zinc-800"
-              : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+              ? "bg-white text-zinc-800 border border-zinc-200/50 shadow-sm"
+              : "text-zinc-500 hover:text-zinc-700 border border-transparent"
           }`}
         >
           Create New
@@ -123,27 +123,27 @@ export default function OrganizationCreation() {
       </div>
 
       {errorMsg && (
-        <div className="rounded-lg border border-red-900/40 bg-red-950/15 p-3.5 text-[11px] font-semibold text-red-400 leading-relaxed text-center animate-in fade-in">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3.5 text-[11px] font-semibold text-red-750 leading-relaxed text-center animate-in fade-in">
           {errorMsg}
         </div>
       )}
 
       {activeTab === "join" ? (
         <div className="space-y-4">
-          <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest px-1 select-none">
+          <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest px-1 select-none">
             Active Organizations ({globalOrgs.length})
           </div>
 
-          <div className="max-h-[220px] overflow-y-auto border border-zinc-950 rounded-xl divide-y divide-zinc-950/80 bg-[#050505] p-1.5 space-y-1.5 no-scrollbar">
+          <div className="max-h-[220px] overflow-y-auto border border-zinc-200 rounded-xl divide-y divide-zinc-200 bg-zinc-50/50 p-1.5 space-y-1.5 no-scrollbar shadow-inner">
             {loadingGlobal ? (
               <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                <span className="text-[9px] text-zinc-550 font-bold uppercase tracking-widest animate-pulse">Loading list...</span>
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="text-[9px] text-zinc-450 font-bold uppercase tracking-widest animate-pulse">Loading list...</span>
               </div>
             ) : globalOrgs.length === 0 ? (
               <div className="py-12 text-center select-none">
-                <p className="text-[11px] font-semibold text-zinc-400">No organizations found</p>
-                <p className="text-[9px] text-zinc-650 mt-1 max-w-[200px] mx-auto">
+                <p className="text-[11px] font-semibold text-zinc-500">No organizations found</p>
+                <p className="text-[9px] text-zinc-400 mt-1 max-w-[200px] mx-auto">
                   Click the "Create New" tab to configure the system's first organization.
                 </p>
               </div>
@@ -151,18 +151,18 @@ export default function OrganizationCreation() {
               globalOrgs.map((org) => (
                 <div
                   key={org.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-zinc-950/40 bg-zinc-950/10 hover:bg-zinc-950/30 transition-all gap-4"
+                  className="flex items-center justify-between p-3 rounded-lg border border-zinc-150 bg-white hover:bg-zinc-50 transition-all gap-4 shadow-sm"
                 >
                   <div className="overflow-hidden space-y-0.5">
-                    <p className="text-xs font-bold text-zinc-250 truncate">{org.name}</p>
-                    <p className="text-[9px] text-zinc-550 line-clamp-1 leading-normal">
+                    <p className="text-xs font-bold text-zinc-800 truncate">{org.name}</p>
+                    <p className="text-[9px] text-zinc-400 line-clamp-1 leading-normal">
                       {org.description || "Active organization space"}
                     </p>
                     <div className="flex items-center gap-2 pt-0.5">
-                      <span className="text-[8px] font-mono text-zinc-600 font-bold">
+                      <span className="text-[8px] font-mono text-zinc-450 font-bold">
                         WORKSPACES: {org._count?.workspaces ?? 0}
                       </span>
-                      <span className="text-[8px] font-mono text-zinc-600 font-bold">
+                      <span className="text-[8px] font-mono text-zinc-455 font-bold">
                         MEMBERS: {org._count?.members ?? 0}
                       </span>
                     </div>
@@ -171,7 +171,7 @@ export default function OrganizationCreation() {
                   <button
                     onClick={() => joinMutation.mutate(org.id)}
                     disabled={joinMutation.isPending}
-                    className="h-7 px-3.5 rounded-lg bg-white text-[10px] font-bold text-black hover:bg-zinc-200 disabled:opacity-50 shrink-0 cursor-pointer transition-all"
+                    className="h-7 px-3.5 rounded-lg bg-primary text-[10px] font-bold text-white hover:bg-primary-dark disabled:opacity-50 shrink-0 cursor-pointer transition-all shadow-sm"
                   >
                     {joinMutation.isPending ? "Joining..." : "Join"}
                   </button>
@@ -199,28 +199,28 @@ export default function OrganizationCreation() {
             disabled={isSubmitting}
             error={errors.slug}
             register={register}
-            inputClassName="font-mono text-zinc-350"
+            inputClassName="font-mono text-zinc-650"
           />
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-zinc-550 uppercase tracking-widest block select-none">
+            <label className="text-[10px] font-bold text-zinc-455 uppercase tracking-widest block select-none">
               Description (Optional)
             </label>
             <textarea
               placeholder="Introduce your team..."
               disabled={isSubmitting}
               {...register("description")}
-              className="w-full min-h-[70px] rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 py-2.5 text-xs text-foreground placeholder:text-zinc-700 outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all resize-none"
+              className="w-full min-h-[70px] rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-xs text-zinc-800 placeholder:text-zinc-400 outline-none focus:border-primary/30 focus:ring-1 focus:ring-primary/20 transition-all resize-none shadow-sm"
             />
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex h-9 w-full items-center justify-center rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+            className="flex h-9 w-full items-center justify-center rounded-lg bg-primary text-xs font-bold text-white hover:bg-primary-dark transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 cursor-pointer shadow-sm"
           >
             {isSubmitting ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             ) : (
               "Create Organization"
             )}

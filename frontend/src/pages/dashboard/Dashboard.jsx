@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../services/api/client";
 import { useAuthStore } from "../../stores/authStore";
+import aCollabLogo from "../../assets/logo.png";
+import ThreeCanvas from "../../components/auth/ThreeCanvas";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -76,9 +78,7 @@ export default function Dashboard() {
       {/* Top Navbar */}
       <header className="h-14 border-b border-zinc-200 bg-white flex items-center justify-between px-8 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">
-            A
-          </div>
+          <img src={aCollabLogo} alt="A-Collab Logo" className="h-7 w-7 object-contain" />
           <span className="text-sm font-semibold text-zinc-900">A-Collab Workspace Portal</span>
         </div>
         <div className="flex items-center gap-4">
@@ -93,14 +93,17 @@ export default function Dashboard() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 flex items-center justify-center p-6">
+      <main className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
+        {/* Animated background layer */}
+        <ThreeCanvas />
+
         {isDataLoading ? (
-          <div className="flex flex-col items-center space-y-3">
+          <div className="flex flex-col items-center space-y-3 z-10">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             <p className="text-xs text-zinc-400 font-medium animate-pulse">Loading workspaces...</p>
           </div>
         ) : (
-          <div className="w-full max-w-2xl bg-white border border-zinc-200 rounded-2xl shadow-xl p-8 space-y-8 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-white/75 backdrop-blur-md border border-zinc-200/80 rounded-2xl shadow-xl p-8 space-y-8 animate-in fade-in duration-200 relative z-10">
             
             {/* Header Greeting */}
             <div className="space-y-1">

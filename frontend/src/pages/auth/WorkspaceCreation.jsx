@@ -72,14 +72,14 @@ export default function WorkspaceCreation() {
     return (
       <div className="flex flex-col items-center justify-center py-10 space-y-6 animate-in fade-in duration-200">
         <div className="relative flex h-14 w-14 items-center justify-center">
-          <div className="absolute inset-0 animate-ping rounded-full bg-white/5" />
-          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-white border-t-transparent z-10" />
+          <div className="absolute inset-0 animate-ping rounded-full bg-primary/5" />
+          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary border-t-transparent z-10" />
         </div>
         <div className="text-center space-y-1.5 select-none">
-          <h4 className="text-xs font-bold tracking-tight text-white uppercase tracking-wider">
+          <h4 className="text-xs font-bold tracking-tight text-zinc-805 uppercase tracking-wider">
             Configuring environment
           </h4>
-          <p className="text-[11px] text-zinc-500 animate-pulse">
+          <p className="text-[11px] text-zinc-400 animate-pulse">
             {progressText}
           </p>
         </div>
@@ -90,13 +90,13 @@ export default function WorkspaceCreation() {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       <div className="flex flex-col items-center space-y-2 text-center select-none">
-        <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-widest bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-900">
+        <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-widest bg-zinc-100 px-2 py-0.5 rounded-full border border-zinc-200">
           Step 2: Workspace Setup
         </div>
-        <h3 className="text-xl font-bold tracking-tight text-white pt-1">
+        <h3 className="text-xl font-bold tracking-tight text-zinc-900 pt-1">
           Create Workspace
         </h3>
-        <p className="text-[11px] text-zinc-500 font-medium">
+        <p className="text-[11px] text-zinc-400 font-medium">
           Define your first active workspace in organization &ldquo;{orgSlug}&rdquo;
         </p>
       </div>
@@ -120,7 +120,7 @@ export default function WorkspaceCreation() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex h-9 w-full items-center justify-center rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+          className="flex h-9 w-full items-center justify-center rounded-lg bg-primary text-xs font-bold text-white hover:bg-primary-dark transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 cursor-pointer shadow-sm"
         >
           Launch Workspace
         </button>

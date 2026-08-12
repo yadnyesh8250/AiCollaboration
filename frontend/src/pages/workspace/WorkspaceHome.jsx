@@ -4,18 +4,35 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../services/api/client";
 import { useAuthStore } from "../../stores/authStore";
 import { useUIStore } from "../../stores/uiStore";
+import { getSocket } from "../../services/socket/connection";
 
 import MeetingToWorkflowModal from "../../components/workspace/MeetingToWorkflowModal";
 import WorkspaceHealthCard from "../../components/workspace/WorkspaceHealthCard";
 import SprintPlannerModal from "../../components/workspace/SprintPlannerModal";
 import GitHubIntegrationModal from "../../components/workspace/GitHubIntegrationModal";
 import WorkspaceMemoryModal from "../../components/workspace/WorkspaceMemoryModal";
+import { 
+  ClipboardList, 
+  Zap, 
+  CheckCircle2, 
+  Users, 
+  Sparkles, 
+  Layers, 
+  GitPullRequest, 
+  Brain, 
+  Plus, 
+  Bot,
+  BarChart2,
+  BookOpen,
+  CalendarDays,
+  FileText
+} from "lucide-react";
 
 export default function WorkspaceHome() {
   const { workspaceId } = useParams();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const { activeRightPanel, setRightPanel } = useUIStore();
+  const { activeRightPanel, setRightPanel, openCopilot } = useUIStore();
 
   // Greeting
   const [greeting, setGreeting] = useState("Welcome back");
@@ -58,12 +75,80 @@ export default function WorkspaceHome() {
     enabled: !!workspaceId,
   });
 
+  const { data: sprints = [], isLoading: sprintsLoading } = useQuery({
+    queryKey: ["workspaceSprints", workspaceId],
+    queryFn: () => api.get(`/workspaces/${workspaceId}/sprints`).then((r) => r.data.sprints),
+    enabled: !!workspaceId,
+  });
+
+  const { data: dashboardData } = useQuery({
+    queryKey: ["workspaceDashboard", workspaceId],
+    queryFn: () => api.get(`/workspaces/${workspaceId}/dashboard`).then((r) => r.data.dashboard),
+    enabled: !!workspaceId,
+  });
+
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api.get("/notifications").then((r) => r.data.notifications || []),
+  });
+
+  // Real-time Socket.io invalidators
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleTaskChange = () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaceTasks", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["workspaceDashboard", workspaceId] });
+    };
+    const handleSprintChange = () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaceSprints", workspaceId] });
+    };
+    const handleDocChange = () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaceDocsList", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["workspaceDashboard", workspaceId] });
+    };
+    const handleNotificationChange = () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    };
+    const handleMemberChange = () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaceMembers", workspaceId] });
+    };
+
+    socket.on("taskCreated", handleTaskChange);
+    socket.on("taskUpdated", handleTaskChange);
+    socket.on("taskDeleted", handleTaskChange);
+    socket.on("sprintCreated", handleSprintChange);
+    socket.on("sprintUpdated", handleSprintChange);
+    socket.on("documentCreated", handleDocChange);
+    socket.on("documentUpdated", handleDocChange);
+    socket.on("documentDeleted", handleDocChange);
+    socket.on("notification:new", handleNotificationChange);
+    socket.on("memberAdded", handleMemberChange);
+    socket.on("memberRemoved", handleMemberChange);
+
+    return () => {
+      socket.off("taskCreated", handleTaskChange);
+      socket.off("taskUpdated", handleTaskChange);
+      socket.off("taskDeleted", handleTaskChange);
+      socket.off("sprintCreated", handleSprintChange);
+      socket.off("sprintUpdated", handleSprintChange);
+      socket.off("documentCreated", handleDocChange);
+      socket.off("documentUpdated", handleDocChange);
+      socket.off("documentDeleted", handleDocChange);
+      socket.off("notification:new", handleNotificationChange);
+      socket.off("memberAdded", handleMemberChange);
+      socket.off("memberRemoved", handleMemberChange);
+    };
+  }, [workspaceId, queryClient]);
+
   // Mutations
   const createTaskMutation = useMutation({
     mutationFn: (data) => api.post(`/workspaces/${workspaceId}/tasks`, data),
     onSuccess: () => {
       setIsTaskModalOpen(false); setTaskTitle(""); setTaskDesc(""); setTaskPriority("MEDIUM");
       queryClient.invalidateQueries({ queryKey: ["workspaceTasks", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["workspaceDashboard", workspaceId] });
     },
   });
 
@@ -72,6 +157,7 @@ export default function WorkspaceHome() {
     onSuccess: () => {
       setIsDocModalOpen(false); setDocTitle("");
       queryClient.invalidateQueries({ queryKey: ["workspaceDocsList", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["workspaceDashboard", workspaceId] });
     },
   });
 
@@ -97,12 +183,11 @@ export default function WorkspaceHome() {
   const completed = milestones.filter((m) => m.done).length;
   const progress = Math.round((completed / milestones.length) * 100);
 
-  // Stat cards
   const stats = [
-    { label: "Open Tasks", value: tasks.filter((t) => t.status !== "DONE").length, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", icon: "📋" },
-    { label: "In Progress", value: tasks.filter((t) => t.status === "IN_PROGRESS").length, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200", icon: "⚡" },
-    { label: "Completed", value: tasks.filter((t) => t.status === "DONE").length, color: "text-green-600", bg: "bg-green-50", border: "border-green-200", icon: "✅" },
-    { label: "Team Size", value: members.length, color: "text-primary", bg: "bg-accent", border: "border-[#0F9F78]/20", icon: "👥" },
+    { label: "Open Tasks", value: tasks.filter((t) => t.status !== "DONE").length, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200/60", icon: <ClipboardList className="h-5 w-5 text-amber-650" /> },
+    { label: "In Progress", value: tasks.filter((t) => t.status === "IN_PROGRESS").length, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200/60", icon: <Zap className="h-5 w-5 text-blue-600" /> },
+    { label: "Completed", value: tasks.filter((t) => t.status === "DONE").length, color: "text-green-600", bg: "bg-green-50", border: "border-green-200/60", icon: <CheckCircle2 className="h-5 w-5 text-green-650" /> },
+    { label: "Team Size", value: members.length, color: "text-primary", bg: "bg-primary/5", border: "border-primary/20", icon: <Users className="h-5 w-5 text-primary" /> },
   ];
 
   // Calendar
@@ -121,9 +206,7 @@ export default function WorkspaceHome() {
   const monthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
   const today = new Date().getDate();
 
-  // Recent tasks (last 5)
-  const recentTasks = [...tasks].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
-
+  // Calculations
   const priorityMap = {
     URGENT: { label: "Urgent", className: "ac-badge-red" },
     HIGH: { label: "High", className: "ac-badge-amber" },
@@ -131,318 +214,398 @@ export default function WorkspaceHome() {
     LOW: { label: "Low", className: "ac-badge-gray" },
   };
 
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+  // 1. My Work
+  const myTasks = tasks.filter(t => t.assignedTo === user?.id && t.status !== "DONE");
+  const sortedMyTasks = [...myTasks].sort((a, b) => {
+    if (a.dueDate && b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate);
+    if (a.dueDate) return -1;
+    if (b.dueDate) return 1;
+    const priorityOrder = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+    return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
+  });
 
-        {/* ── Header ── */}
-        <div className="flex items-start justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-zinc-900">
-              {greeting},{" "}
-              <span className="text-primary">{user?.firstName || user?.username || "there"}</span> 👋
-            </h1>
-            <p className="text-sm text-zinc-500 mt-1">
-              Here's what's happening in your workspace today.
-            </p>
+  const tasksDueToday = myTasks.filter(t => {
+    if (!t.dueDate) return false;
+    const d = new Date(t.dueDate);
+    const today = new Date();
+    return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+  });
+
+  const unreadNotifications = notifications.filter(n => !n.isRead);
+
+  // 2. Sprints
+  const activeSprint = sprints.find(s => s.status === "ACTIVE");
+  let sprintProgress = 0;
+  let completedSprintTasksCount = 0;
+  let totalSprintTasksCount = 0;
+  let sprintTasksList = [];
+  if (activeSprint) {
+    sprintTasksList = activeSprint.tasks?.map(st => st.task).filter(Boolean) || [];
+    totalSprintTasksCount = sprintTasksList.length;
+    completedSprintTasksCount = sprintTasksList.filter(t => t.status === "DONE").length;
+    sprintProgress = totalSprintTasksCount > 0 ? Math.round((completedSprintTasksCount / totalSprintTasksCount) * 100) : 0;
+  }
+
+  // 3. Team Activity (Recent Work)
+  const recentActivityItems = [];
+  tasks.forEach(t => {
+    recentActivityItems.push({
+      id: `task-${t.id}`,
+      title: t.title,
+      type: "Task",
+      updatedAt: new Date(t.updatedAt),
+      link: `/workspaces/${workspaceId}/tasks`
+    });
+  });
+  docs.forEach(d => {
+    recentActivityItems.push({
+      id: `doc-${d.id}`,
+      title: d.title,
+      type: "Document",
+      updatedAt: new Date(d.updatedAt),
+      link: `/workspaces/${workspaceId}/docs`
+    });
+  });
+  const sortedActivity = recentActivityItems.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5);
+
+  const getRelativeTime = (date) => {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.round(diffMs / 60000);
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHrs = Math.round(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  };
+
+  // 4. CollabAI Context
+  const tasksDueThisWeek = tasks.filter(t => {
+    if (!t.dueDate || t.status === "DONE") return false;
+    const d = new Date(t.dueDate);
+    const now = new Date();
+    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+    const endOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+    return d >= startOfWeek && d <= endOfWeek;
+  }).length;
+
+  if (tasksLoading || sprintsLoading) {
+    return (
+      <div className="h-full overflow-y-auto bg-zinc-50/50">
+        <div className="max-w-6xl mx-auto px-6 py-8 space-y-8 animate-pulse">
+          <div className="space-y-2 border-b border-zinc-200/60 pb-6">
+            <div className="h-8 w-48 bg-zinc-200 rounded" />
+            <div className="h-4 w-72 bg-zinc-150 rounded mt-1.5" />
           </div>
-
-          {/* Flagship AI Workflow Quick Actions */}
-          <div className="flex items-center flex-wrap gap-2">
-            <button
-              onClick={() => setIsMeetingModalOpen(true)}
-              className="h-9 px-3.5 rounded-lg bg-teal-50 border border-teal-200 hover:bg-teal-100 text-xs font-semibold text-teal-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
-              title="AI Meeting -> Tasks -> Documentation Pipeline"
-            >
-              <span>⚡</span>
-              <span>AI Meeting Pipeline</span>
-            </button>
-
-            <button
-              onClick={() => setIsSprintModalOpen(true)}
-              className="h-9 px-3 rounded-lg bg-white border border-border hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <span>🚀</span>
-              <span>Sprint Planner</span>
-            </button>
-
-            <button
-              onClick={() => setIsGitHubModalOpen(true)}
-              className="h-9 px-3 rounded-lg bg-white border border-border hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <span>🐙</span>
-              <span>GitHub PR</span>
-            </button>
-
-            <button
-              onClick={() => setIsMemoryModalOpen(true)}
-              className="h-9 px-3 rounded-lg bg-violet-50 border border-violet-200 hover:bg-violet-100 text-xs font-semibold text-violet-700 transition-all cursor-pointer flex items-center gap-1.5"
-              title="Workspace Memory Vault"
-            >
-              <span>🧠</span>
-              <span>Memory Vault</span>
-            </button>
-
-            <button
-              onClick={() => setIsTaskModalOpen(true)}
-              className="h-9 px-3 rounded-lg border border-border bg-white hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              + Task
-            </button>
-
-            <button
-              onClick={() => setRightPanel(activeRightPanel === "AI_COPILOT" ? null : "AI_COPILOT")}
-              className="h-9 px-4 rounded-lg bg-primary hover:bg-[#087F66] text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              CollabAI →
-            </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="h-64 bg-white border border-zinc-200/80 rounded-2xl p-6" />
+            <div className="h-64 bg-white border border-zinc-200/80 rounded-2xl p-6" />
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* ── Workspace Health & Proactive AI Insights ── */}
+  return (
+    <div className="h-full overflow-y-auto bg-zinc-50/50 select-none">
+      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+        
+        {/* Header greeting */}
+        <div className="border-b border-zinc-200/60 pb-6">
+          <h1 className="text-3xl font-semibold text-zinc-900 tracking-tight">
+            {greeting}, <span className="text-primary">{user?.firstName || user?.username || "there"}</span> 👋
+          </h1>
+          <p className="text-sm text-zinc-550 mt-1.5 font-medium">
+            Here's what's happening in your workspace today.
+          </p>
+        </div>
+
+        {/* Proactive AI Insights (Only if returned from real backend endpoint) */}
         <WorkspaceHealthCard onOpenMeetingModal={() => setIsMeetingModalOpen(true)} />
 
-        {/* ── Stats Row ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className={`bg-white border ${stat.border} rounded-xl p-5 flex items-center gap-4`}>
-              <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center text-xl shrink-0`}>
-                {stat.icon}
-              </div>
-              <div>
-                <p className={`text-2xl font-bold ${stat.color}`}>{tasksLoading ? "—" : stat.value}</p>
-                <p className="text-xs text-zinc-500 font-medium mt-0.5">{stat.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Main Content Grid ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* Left Column: Setup checklist + Recent tasks */}
-          <div className="lg:col-span-2 space-y-6">
-
-            {/* Onboarding Checklist */}
-            {progress < 100 && (
-              <div className="bg-white border border-border rounded-xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-                  <div>
-                    <h3 className="text-base font-semibold text-zinc-900">Get started with A-Collab</h3>
-                    <p className="text-sm text-zinc-400 mt-0.5">Complete setup to unlock your full workspace potential</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-bold text-primary">{progress}%</span>
-                    <p className="text-xs text-zinc-400 font-medium">{completed}/{milestones.length} done</p>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="h-1 bg-zinc-100">
-                  <div
-                    className="h-full bg-primary transition-all duration-700 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-
-                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {milestones.map((m, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
-                        m.done ? "bg-accent/50 border-[#0F9F78]/20" : "bg-white border-border hover:border-zinc-300"
-                      }`}
-                    >
-                      <div className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
-                        m.done ? "bg-primary text-white" : "border-2 border-zinc-200 text-zinc-400"
-                      }`}>
-                        {m.done ? "✓" : i + 1}
-                      </div>
-                      <div>
-                        <p className={`text-sm font-medium ${m.done ? "text-primary line-through" : "text-zinc-800"}`}>{m.label}</p>
-                        <p className="text-xs text-zinc-400 mt-0.5">{m.desc}</p>
-                      </div>
-                    </div>
-                  ))}
+        {/* Two-Column Grid: My Work & Current Sprint */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* My Work Section */}
+          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+                <h2 className="text-sm font-bold text-zinc-800 tracking-tight uppercase">My Work</h2>
+                <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium">
+                  {tasksDueToday.length > 0 && (
+                    <span className="bg-red-50 text-red-650 px-2 py-0.5 rounded-full border border-red-200/60">
+                      {tasksDueToday.length} due today
+                    </span>
+                  )}
+                  {dashboardData?.cards?.unreadMessages > 0 && (
+                    <span className="bg-blue-50 text-blue-650 px-2 py-0.5 rounded-full border border-blue-200/60">
+                      {dashboardData.cards.unreadMessages} messages
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* Recent Tasks */}
-            <div className="bg-white border border-border rounded-xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-                <h3 className="text-base font-semibold text-zinc-900">Recent Tasks</h3>
-                <Link
-                  to={`/workspaces/${workspaceId}/tasks`}
-                  className="text-sm font-medium text-primary hover:text-[#087F66] transition-colors"
-                >
-                  View all →
-                </Link>
-              </div>
-
-              {tasksLoading ? (
-                <div className="p-6 text-center">
-                  <div className="animate-pulse space-y-3">
-                    {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-zinc-100 rounded-lg" />)}
-                  </div>
-                </div>
-              ) : recentTasks.length === 0 ? (
-                <div className="empty-state px-6">
-                  <div className="empty-state-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5 3 12l3.75 4.5m6.75-9L17.25 12l-3.75 4.5m-3.375.75 1.875-9" />
-                    </svg>
-                  </div>
-                  <p className="empty-state-title">No tasks yet</p>
-                  <p className="empty-state-desc">Create your first task to start tracking work</p>
-                  <button onClick={() => setIsTaskModalOpen(true)} className="btn-primary mt-4 h-9 px-4 text-sm">
-                    Create Task
-                  </button>
+              {sortedMyTasks.length === 0 ? (
+                <div className="py-8 text-center text-sm text-zinc-400 font-medium">
+                  No tasks assigned to you right now. Nice work!
                 </div>
               ) : (
-                <div className="divide-y divide-border">
-                  {recentTasks.map((task) => {
+                <div className="space-y-3 max-h-[220px] overflow-y-auto no-scrollbar">
+                  {sortedMyTasks.slice(0, 5).map((task) => {
                     const p = priorityMap[task.priority] || priorityMap.MEDIUM;
-                    const statusColor = {
-                      TODO: "text-zinc-500", IN_PROGRESS: "text-blue-600", IN_REVIEW: "text-amber-600", DONE: "text-green-600"
-                    }[task.status] || "text-zinc-500";
                     return (
-                      <div key={task.id} className="px-6 py-3.5 flex items-center gap-4 hover:bg-zinc-50 transition-colors cursor-pointer">
-                        <div className={`h-2 w-2 rounded-full shrink-0 ${
-                          task.status === "DONE" ? "bg-green-500" : task.status === "IN_PROGRESS" ? "bg-blue-500" : task.status === "IN_REVIEW" ? "bg-amber-500" : "bg-zinc-300"
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${task.status === "DONE" ? "line-through text-zinc-400" : "text-zinc-800"}`}>
-                            {task.title}
-                          </p>
-                          {task.dueDate && (
-                            <p className="text-xs text-zinc-400 mt-0.5">
-                              Due {new Date(task.dueDate).toLocaleDateString([], { month: "short", day: "numeric" })}
-                            </p>
-                          )}
+                      <Link
+                        key={task.id}
+                        to={`/workspaces/${workspaceId}/tasks`}
+                        className="flex items-center justify-between p-3 rounded-xl border border-zinc-100 hover:border-zinc-200/80 hover:bg-zinc-50/50 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <div className={`h-2 w-2 rounded-full shrink-0 ${
+                            task.status === "DONE" ? "bg-green-500" : task.status === "IN_PROGRESS" ? "bg-blue-500" : task.status === "IN_REVIEW" ? "bg-amber-500" : "bg-zinc-300"
+                          }`} />
+                          <p className="text-sm font-semibold text-zinc-700 truncate">{task.title}</p>
                         </div>
-                        <span className={`ac-badge ${p.className} shrink-0`}>{p.label}</span>
-                        <span className={`text-xs font-medium ${statusColor} shrink-0 hidden sm:block`}>
-                          {task.status?.replace("_", " ")}
-                        </span>
-                      </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {task.dueDate && (
+                            <span className="text-xs text-zinc-450 font-medium">
+                              {new Date(task.dueDate).toLocaleDateString([], { month: "short", day: "numeric" })}
+                            </span>
+                          )}
+                          <span className={`ac-badge ${p.className}`}>{p.label}</span>
+                        </div>
+                      </Link>
                     );
                   })}
                 </div>
               )}
             </div>
+
+            <div className="pt-4 border-t border-zinc-100 mt-4 flex justify-end">
+              <Link
+                to={`/workspaces/${workspaceId}/tasks`}
+                className="text-xs font-bold text-primary hover:text-[#087F66] transition-colors"
+              >
+                View my work →
+              </Link>
+            </div>
           </div>
 
-          {/* Right Column: Calendar + AI card */}
-          <div className="space-y-6">
-
-            {/* Mini Calendar */}
-            <div className="bg-white border border-border rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-border">
-                <h3 className="text-base font-semibold text-zinc-900">{monthName}</h3>
-              </div>
-              <div className="p-4">
-                {/* Weekday headers */}
-                <div className="grid grid-cols-7 mb-2">
-                  {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
-                    <div key={d} className="text-center text-xs font-medium text-zinc-400 py-1">{d}</div>
-                  ))}
-                </div>
-                {/* Days */}
-                <div className="grid grid-cols-7 gap-0.5">
-                  {calendarDays.map((day, i) => {
-                    if (!day) return <div key={i} className="aspect-square" />;
-                    const isToday = day.getDate() === today;
-                    const hasTasks = tasks.some((t) => {
-                      if (!t.dueDate) return false;
-                      const d = new Date(t.dueDate);
-                      return d.getDate() === day.getDate() && d.getMonth() === day.getMonth();
-                    });
-                    return (
-                      <div
-                        key={i}
-                        className={`aspect-square flex flex-col items-center justify-center rounded-lg relative transition-colors cursor-default text-sm ${
-                          isToday
-                            ? "bg-primary text-white font-semibold"
-                            : "hover:bg-zinc-50 text-zinc-700"
-                        }`}
-                      >
-                        <span>{day.getDate()}</span>
-                        {hasTasks && !isToday && (
-                          <span className="absolute bottom-1 h-1 w-1 rounded-full bg-amber-500" />
-                        )}
-                        {hasTasks && isToday && (
-                          <span className="absolute bottom-1 h-1 w-1 rounded-full bg-white/70" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* AI Insight Card */}
-            <div className="bg-white border border-violet-200 rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-violet-100 flex items-center gap-2.5">
-                <div className="h-7 w-7 rounded-lg bg-violet-50 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4 text-violet-600">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-zinc-900">CollabAI</p>
-                  <p className="text-xs text-zinc-400">Workspace intelligence</p>
-                </div>
+          {/* Current Sprint Section */}
+          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+                <h2 className="text-sm font-bold text-zinc-800 tracking-tight uppercase">Current Sprint</h2>
+                {activeSprint && (
+                  <span className="text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200/60 px-2 py-0.5 rounded-full">
+                    Active
+                  </span>
+                )}
               </div>
 
-              <div className="p-5 space-y-3">
-                <div className="space-y-2">
-                  {[
-                    { icon: "📊", text: `${tasks.filter((t) => t.status === "IN_PROGRESS").length} tasks in progress right now` },
-                    { icon: "📚", text: `${docs.length} knowledge documents created` },
-                    { icon: "👥", text: `${members.length} team member${members.length !== 1 ? "s" : ""} in this workspace` },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center gap-2.5 text-sm text-zinc-600">
-                      <span>{item.icon}</span>
-                      <span>{item.text}</span>
+              {!activeSprint ? (
+                <div className="py-8 text-center space-y-3">
+                  <p className="text-sm text-zinc-400 font-medium">No active sprint cycle currently running.</p>
+                  <button
+                    onClick={() => setIsSprintModalOpen(true)}
+                    className="h-8.5 px-4 rounded-lg bg-primary hover:bg-[#087F66] text-white text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                    <span>Open Sprint Planner</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-base font-bold text-zinc-900">{activeSprint.name}</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5 font-medium">
+                      Ends {new Date(activeSprint.endDate).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-zinc-550">
+                      <span>Progress</span>
+                      <span>{sprintProgress}% ({completedSprintTasksCount} / {totalSprintTasksCount} tasks)</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden border border-zinc-200/40">
+                      <div
+                        className="h-full bg-primary transition-all duration-700"
+                        style={{ width: `${sprintProgress}%` }}
+                      />
+                    </div>
+                  </div>
 
-                <button
-                  onClick={() => setRightPanel(activeRightPanel === "AI_COPILOT" ? null : "AI_COPILOT")}
-                  className="w-full h-9 rounded-lg bg-violet-50 border border-violet-200 hover:bg-violet-100 text-sm font-medium text-violet-600 transition-all cursor-pointer"
-                >
-                  Open CollabAI →
-                </button>
-              </div>
+                  <div className="grid grid-cols-3 gap-2.5 pt-2">
+                    <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-zinc-550 font-medium">To Do</p>
+                      <p className="text-base font-bold text-zinc-800 mt-0.5">
+                        {sprintTasksList.filter(t => t.status === "TODO").length}
+                      </p>
+                    </div>
+                    <div className="bg-blue-50/40 border border-blue-100/50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-zinc-550 font-medium">In Progress</p>
+                      <p className="text-base font-bold text-blue-650 mt-0.5">
+                        {sprintTasksList.filter(t => t.status === "IN_PROGRESS").length}
+                      </p>
+                    </div>
+                    <div className="bg-emerald-50/40 border border-emerald-100/50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-zinc-550 font-medium">Done</p>
+                      <p className="text-base font-bold text-emerald-650 mt-0.5">
+                        {completedSprintTasksCount}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Recent Docs */}
-            {docs.length > 0 && (
-              <div className="bg-white border border-border rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-zinc-900">Recent Documents</h3>
-                  <Link to={`/workspaces/${workspaceId}/docs`} className="text-xs text-primary hover:text-[#087F66]">All docs →</Link>
-                </div>
-                <div className="divide-y divide-border">
-                  {docs.slice(0, 4).map((doc) => (
-                    <Link
-                      key={doc.id}
-                      to={`/workspaces/${workspaceId}/docs`}
-                      className="flex items-center gap-3 px-5 py-3 hover:bg-zinc-50 transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4 text-zinc-400 shrink-0">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                      </svg>
-                      <p className="text-sm text-zinc-700 truncate">{doc.title}</p>
-                    </Link>
-                  ))}
-                </div>
+            {activeSprint && (
+              <div className="pt-4 border-t border-zinc-100 mt-4 flex justify-end">
+                <Link
+                  to={`/workspaces/${workspaceId}/tasks`}
+                  className="text-xs font-bold text-primary hover:text-[#087F66] transition-colors"
+                >
+                  Open Board →
+                </Link>
               </div>
             )}
           </div>
         </div>
+
+        {/* Two-Column Grid: Recent Activity & CollabAI */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
+          
+          {/* Recent Workspace Activity */}
+          <div className="lg:col-span-2 bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+            <h2 className="text-sm font-bold text-zinc-800 tracking-tight uppercase border-b border-zinc-100 pb-3">
+              Recent Workspace Activity
+            </h2>
+
+            {sortedActivity.length === 0 ? (
+              <div className="py-8 text-center text-sm text-zinc-400 font-medium">
+                No recent activity in this workspace yet. Create tasks or documents to see updates!
+              </div>
+            ) : (
+              <div className="divide-y divide-zinc-100 max-h-[260px] overflow-y-auto no-scrollbar">
+                {sortedActivity.map((item) => (
+                  <Link
+                    key={item.id}
+                    to={item.link}
+                    className="flex items-center justify-between py-3.5 first:pt-0 last:pb-0 hover:bg-zinc-50/50 rounded-lg px-2 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="h-8 w-8 rounded-lg bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-semibold text-zinc-500 shrink-0">
+                        {item.type === "Task" ? <ClipboardList className="h-4 w-4 text-zinc-450" /> : <BookOpen className="h-4 w-4 text-zinc-450" />}
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-sm font-semibold text-zinc-800 truncate">{item.title}</p>
+                        <p className="text-xs text-zinc-400 mt-0.5 font-medium">{item.type}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-zinc-450 font-medium shrink-0">
+                      Updated {getRelativeTime(item.updatedAt)}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* CollabAI Assistant Context Widget */}
+          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-zinc-100 pb-3">
+                <div className="h-6 w-6 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
+                  <Bot className="h-3.5 w-3.5 text-violet-500" />
+                </div>
+                <h2 className="text-sm font-bold text-zinc-800 tracking-tight uppercase">CollabAI</h2>
+              </div>
+
+              <p className="text-xs text-zinc-500 leading-relaxed font-medium">
+                I can help you analyze, search, and automate workflows in this workspace.
+              </p>
+
+              {/* Workspace Context Data */}
+              <div className="bg-zinc-50/50 border border-zinc-100 rounded-xl p-3 space-y-2">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Workspace Context</p>
+                <div className="space-y-1.5 text-xs text-zinc-650 font-medium">
+                  <p className="flex items-center justify-between">
+                    <span>Blocked tasks:</span>
+                    <span className="font-bold text-zinc-850">{tasks.filter(t => t.status === "BLOCKED").length}</span>
+                  </p>
+                  <p className="flex items-center justify-between">
+                    <span>Tasks due this week:</span>
+                    <span className="font-bold text-zinc-850">{tasksDueThisWeek}</span>
+                  </p>
+                  <p className="flex items-center justify-between">
+                    <span>Unread notifications:</span>
+                    <span className="font-bold text-zinc-850">{unreadNotifications.length}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Prompt Suggestions */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Suggested prompts</p>
+                <div className="space-y-1.5">
+                  {[
+                    { label: "What's blocking the sprint?", prompt: "What is blocking sprint?" },
+                    { label: "What do I need to finish today?", prompt: "What do I need to finish today?" },
+                    { label: "Summarize recent activity", prompt: "Summarize recent activity in this workspace." }
+                  ].map((s, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => openCopilot(s.prompt)}
+                      className="w-full text-left px-3 py-2 rounded-xl bg-violet-50/50 border border-violet-100 hover:bg-violet-100/60 hover:border-violet-200 text-xs font-semibold text-violet-750 transition-all cursor-pointer"
+                    >
+                      {s.label} →
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions Row */}
+        <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 shadow-sm space-y-3.5">
+          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Quick Actions</p>
+          <div className="flex items-center flex-wrap gap-2.5">
+            <button
+              onClick={() => setIsTaskModalOpen(true)}
+              className="h-9 px-4 rounded-lg bg-zinc-50 border border-zinc-200 hover:bg-zinc-100 text-xs font-bold text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5 text-zinc-450" />
+              <span>New Task</span>
+            </button>
+
+            <button
+              onClick={() => setIsDocModalOpen(true)}
+              className="h-9 px-4 rounded-lg bg-zinc-50 border border-zinc-200 hover:bg-zinc-100 text-xs font-bold text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5 text-zinc-455" />
+              <span>New Document</span>
+            </button>
+
+            <Link
+              to={`/workspaces/${workspaceId}/settings`}
+              className="h-9 px-4 rounded-lg bg-zinc-50 border border-zinc-200 hover:bg-zinc-100 text-xs font-bold text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Users className="h-3.5 w-3.5 text-zinc-450" />
+              <span>Invite Teammate</span>
+            </Link>
+
+            <button
+              onClick={() => setRightPanel(activeRightPanel === "AI_COPILOT" ? null : "AI_COPILOT")}
+              className="h-9 px-4 rounded-lg bg-primary hover:bg-[#087F66] text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+            >
+              <Bot className="h-3.5 w-3.5 text-white/90 shrink-0" />
+              <span>Ask CollabAI</span>
+            </button>
+          </div>
+        </div>
+
       </div>
 
       {/* ── Create Task Modal ── */}

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import prisma from "../config/db.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
 import { OAuth2Client } from "google-auth-library";
+import { redisClient, isRedisAvailable } from "../config/redis.js";
 
 const generateAuthTokens = async (userId, deviceInfo = null) => {
   // We need basic user payload for tokens
@@ -347,6 +348,215 @@ export const googleLogin = async (req, res) => {
   } catch (err) {
     console.error("[googleLogin]", err);
     return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
+// ──────────────────────────────────────────────
+// GitHub OAuth Flow
+// ──────────────────────────────────────────────
+const localStates = new Map();
+
+const getGithubRedirectUri = (req) => {
+  return process.env.GITHUB_REDIRECT_URI || `${req.protocol}://${req.get("host")}/api/auth/github/callback`;
+};
+
+const saveOAuthState = async (state) => {
+  if (isRedisAvailable && redisClient) {
+    try {
+      await redisClient.set(`oauth:state:${state}`, "1", "EX", 600); // 10 minutes
+      return;
+    } catch (err) {
+      console.warn("Failed to set state in Redis, falling back to Map:", err);
+    }
+  }
+  localStates.set(state, Date.now() + 10 * 60 * 1000); // 10 minutes
+};
+
+const verifyOAuthState = async (state) => {
+  if (isRedisAvailable && redisClient) {
+    try {
+      const exists = await redisClient.get(`oauth:state:${state}`);
+      if (exists) {
+        await redisClient.del(`oauth:state:${state}`);
+        return true;
+      }
+    } catch (err) {
+      console.warn("Failed to get state from Redis, checking Map:", err);
+    }
+  }
+  
+  const expiry = localStates.get(state);
+  if (expiry) {
+    localStates.delete(state);
+    if (Date.now() < expiry) {
+      return true;
+    }
+  }
+  
+  return false;
+};
+
+export const githubInitiate = async (req, res) => {
+  try {
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    if (!clientId) {
+      return res.status(500).json({ success: false, message: "GitHub client ID is not configured on the server." });
+    }
+    
+    const state = Math.random().toString(36).substring(2, 15);
+    await saveOAuthState(state);
+    
+    const redirectUri = getGithubRedirectUri(req);
+    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=user:email`;
+    
+    return res.redirect(githubAuthUrl);
+  } catch (err) {
+    console.error("[githubInitiate]", err);
+    return res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
+export const githubCallback = async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    if (!code || !state) {
+      return res.status(400).send("Authorization code and state are required from GitHub.");
+    }
+    
+    const isStateValid = await verifyOAuthState(state);
+    if (!isStateValid) {
+      return res.status(400).send("OAuth state verification failed. CSRF check triggered.");
+    }
+    
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    const redirectUri = getGithubRedirectUri(req);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    
+    if (!clientId || !clientSecret) {
+      return res.status(500).send("GitHub client ID or secret not configured.");
+    }
+    
+    // 1. Exchange authorization code for access token
+    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: redirectUri,
+        state
+      })
+    });
+    
+    if (!tokenRes.ok) {
+      throw new Error("Failed to exchange code for GitHub token");
+    }
+    
+    const tokenData = await tokenRes.json();
+    const githubAccessToken = tokenData.access_token;
+    
+    if (!githubAccessToken) {
+      return res.status(400).send("Failed to retrieve access token from GitHub.");
+    }
+    
+    // 2. Fetch GitHub User Profile
+    const userRes = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${githubAccessToken}`,
+        Accept: "application/json",
+        "User-Agent": "A-Collab-App"
+      }
+    });
+    
+    if (!userRes.ok) {
+      throw new Error("Failed to fetch user profile from GitHub");
+    }
+    
+    const githubUser = await userRes.json();
+    
+    // 3. Fetch GitHub user email list to find the primary verified one
+    let email = githubUser.email;
+    if (!email) {
+      const emailRes = await fetch("https://api.github.com/user/emails", {
+        headers: {
+          Authorization: `Bearer ${githubAccessToken}`,
+          Accept: "application/json",
+          "User-Agent": "A-Collab-App"
+        }
+      });
+      if (emailRes.ok) {
+        const emails = await emailRes.json();
+        const primaryEmail = emails.find(e => e.primary && e.verified) || emails.find(e => e.primary) || emails[0];
+        if (primaryEmail) {
+          email = primaryEmail.email;
+        }
+      }
+    }
+    
+    if (!email) {
+      return res.status(400).send("Unable to retrieve a verified email address from your GitHub account.");
+    }
+    
+    // 4. Find or Create A-Collab user
+    let user = await prisma.user.findUnique({
+      where: { email }
+    });
+    
+    let isNewUser = false;
+    
+    if (!user) {
+      isNewUser = true;
+      // Generate clean unique username
+      let baseUsername = (githubUser.login || email.split("@")[0]).replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      if (baseUsername.length < 3) {
+        baseUsername = "user" + baseUsername;
+      }
+      
+      let username = baseUsername;
+      let usernameExists = await prisma.user.findUnique({ where: { username } });
+      while (usernameExists) {
+        const randomSuffix = Math.floor(100 + Math.random() * 900);
+        const candidateUsername = `${baseUsername}${randomSuffix}`;
+        const check = await prisma.user.findUnique({ where: { username: candidateUsername } });
+        if (!check) {
+          username = candidateUsername;
+          break;
+        }
+      }
+      
+      const randomPassword = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const passwordHash = await bcrypt.hash(randomPassword, 12);
+      
+      const name = githubUser.name || githubUser.login || "";
+      const firstName = name.split(" ")[0] || null;
+      const lastName = name.split(" ").slice(1).join(" ") || null;
+      
+      user = await prisma.user.create({
+        data: {
+          email,
+          username,
+          passwordHash,
+          firstName,
+          lastName,
+          avatarUrl: githubUser.avatar_url || null
+        }
+      });
+    }
+    
+    // 5. Generate tokens & session
+    const deviceInfo = req.headers["user-agent"];
+    const { accessToken, refreshToken } = await generateAuthTokens(user.id, deviceInfo);
+    
+    // Redirect browser to front-end callback
+    return res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
+  } catch (err) {
+    console.error("[githubCallback]", err);
+    return res.status(500).send("GitHub authentication callback failed.");
   }
 };
 

@@ -117,6 +117,37 @@ export const executeTool = async ({ workspaceId, actorId, toolName, args }) => {
       };
     }
 
+    case "searchUIUXDesign": {
+      const query = args.query;
+      const domain = args.domain;
+      
+      const { execSync } = await import("child_process");
+      const path = await import("path");
+      
+      const scriptPath = path.join(process.cwd(), "..", "frontend", ".agent", "skills", "ui-ux-pro-max", "scripts", "search.py");
+      
+      let command = `python3 "${scriptPath}" "${query.replace(/"/g, '\\"')}"`;
+      if (domain) {
+        command += ` --domain ${domain}`;
+      }
+      
+      console.log(`[ToolRegistry] Running searchUIUXDesign command: ${command}`);
+      
+      try {
+        const output = execSync(command, { encoding: "utf-8" });
+        return {
+          success: true,
+          results: [output]
+        };
+      } catch (execErr) {
+        console.error("Failed to run UI search script:", execErr);
+        return {
+          success: false,
+          results: [`Failed to query UI/UX Pro Max engine: ${execErr.message}`]
+        };
+      }
+    }
+
     default:
       throw new Error(`Tool '${toolName}' is not registered in the tool executor.`);
   }

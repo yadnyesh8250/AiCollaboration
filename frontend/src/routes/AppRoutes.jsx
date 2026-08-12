@@ -18,6 +18,8 @@ import InvitationAcceptance from "../pages/auth/InvitationAcceptance";
 import OrganizationCreation from "../pages/auth/OrganizationCreation";
 import WorkspaceCreation from "../pages/auth/WorkspaceCreation";
 import Dashboard from "../pages/dashboard/Dashboard";
+import LandingPage from "../pages/LandingPage";
+import AuthCallback from "../pages/auth/AuthCallback";
 
 // Workspace sub-pages
 import WorkspaceTasks from "../pages/workspace/WorkspaceTasks";
@@ -64,6 +66,11 @@ function WorkspaceRedirect() {
   return <Navigate to="/dashboard" replace />;
 }
 
+function RootRoute() {
+  const { isAuthenticated } = useAuthStore();
+  return isAuthenticated ? <WorkspaceRedirect /> : <LandingPage />;
+}
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -102,6 +109,8 @@ export default function AppRoutes() {
           }
         />
       </Route>
+
+      <Route path="/auth/callback" element={<AuthCallback />} />
 
       {/* Protected Onboarding Wizard Pages wrapped in AuthLayout */}
       <Route element={<AuthLayout />}>
@@ -149,15 +158,8 @@ export default function AppRoutes() {
         }
       />
 
-      {/* Protected Dashboard Route redirecting to default workspace */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <WorkspaceRedirect />
-          </ProtectedRoute>
-        }
-      />
+      {/* Public Landing Page / Authenticated Default Redirect */}
+      <Route path="/" element={<RootRoute />} />
 
       {/* Protected Workspace Layout Shell */}
       <Route

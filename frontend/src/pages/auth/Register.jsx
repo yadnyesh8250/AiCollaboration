@@ -7,6 +7,7 @@ import { useAuthMutations } from "../../features/auth/hooks/useAuthMutations";
 import FormField from "../../components/common/FormField";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { useGoogleLogin } from "@react-oauth/google";
+import aCollabLogo from "../../assets/logo.png";
 
 const registerSchema = zod.object({
   email: zod.string().min(1, "Email is required").email("Invalid email format"),
@@ -30,6 +31,11 @@ export default function Register() {
     onSuccess: handleGoogleSuccess,
     onError: (error) => console.error("Google Signup failed:", error)
   });
+
+  const handleGithubLogin = () => {
+    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
+    window.location.href = `${apiBase}/auth/github`;
+  };
 
   const activeError = registerError || googleLoginError;
 
@@ -62,13 +68,11 @@ export default function Register() {
     <div className={`space-y-6 ${isShaking ? "animate-shake" : ""}`}>
       {/* Brand Header */}
       <div className="flex flex-col items-center space-y-2 text-center select-none">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black font-black text-lg shadow-sm">
-          A
-        </div>
-        <h3 className="text-xl font-bold tracking-tight text-white pt-2">
+        <img src={aCollabLogo} alt="A-Collab Logo" className="h-10 w-10 object-contain shadow-sm rounded-xl" />
+        <h3 className="text-xl font-bold tracking-tight text-zinc-900 pt-2">
           Create an account
         </h3>
-        <p className="text-[11px] text-zinc-500 font-medium">
+        <p className="text-[11px] text-zinc-400 font-medium">
           Get started with A-Collab platform today
         </p>
       </div>
@@ -129,10 +133,10 @@ export default function Register() {
         <button
           type="submit"
           disabled={isRegistering}
-          className="flex h-9 w-full items-center justify-center rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+          className="flex h-9 w-full items-center justify-center rounded-lg bg-primary text-xs font-bold text-white hover:bg-primary-dark transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 cursor-pointer shadow-sm"
         >
           {isRegistering ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
           ) : (
             "Create Account"
           )}
@@ -142,9 +146,9 @@ export default function Register() {
       {/* OAuth dividers */}
       <div className="space-y-4 pt-2">
         <div className="flex items-center gap-3">
-          <div className="h-px bg-zinc-900 flex-1" />
-          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">or sign up with</span>
-          <div className="h-px bg-zinc-900 flex-1" />
+          <div className="h-px bg-zinc-200 flex-1" />
+          <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">or sign up with</span>
+          <div className="h-px bg-zinc-200 flex-1" />
         </div>
 
         <div className="grid grid-cols-3 gap-3">
@@ -152,10 +156,10 @@ export default function Register() {
             type="button"
             onClick={() => handleGoogleLogin()}
             disabled={isGoogleLoggingIn || isRegistering}
-            className="flex items-center justify-center h-9 rounded-lg border border-zinc-900 hover:border-zinc-800 bg-zinc-950/40 hover:bg-zinc-900/10 transition-all cursor-pointer text-zinc-400 hover:text-white disabled:opacity-50 disabled:pointer-events-none"
+            className="flex items-center justify-center h-9 rounded-lg border border-zinc-200 hover:border-zinc-300 bg-white transition-all cursor-pointer text-zinc-650 hover:text-zinc-900 disabled:opacity-50 disabled:pointer-events-none shadow-sm"
           >
             {isGoogleLoggingIn ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-500 border-t-transparent" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-transparent" />
             ) : (
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -165,12 +169,17 @@ export default function Register() {
               </svg>
             )}
           </button>
-          <button type="button" className="flex items-center justify-center h-9 rounded-lg border border-zinc-900 hover:border-zinc-800 bg-zinc-950/40 hover:bg-zinc-900/10 transition-all cursor-pointer text-zinc-400 hover:text-white">
+          <button 
+            type="button"
+            onClick={handleGithubLogin}
+            disabled={isGoogleLoggingIn || isRegistering}
+            className="flex items-center justify-center h-9 rounded-lg border border-zinc-200 hover:border-zinc-300 bg-white transition-all cursor-pointer text-zinc-650 hover:text-zinc-900 disabled:opacity-50 disabled:pointer-events-none shadow-sm"
+          >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
               <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.137 20.162 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
             </svg>
           </button>
-          <button type="button" className="flex items-center justify-center h-9 rounded-lg border border-zinc-900 hover:border-zinc-800 bg-zinc-950/40 hover:bg-zinc-900/10 transition-all cursor-pointer text-zinc-400 hover:text-white">
+          <button type="button" className="flex items-center justify-center h-9 rounded-lg border border-zinc-200 hover:border-zinc-300 bg-white transition-all cursor-pointer text-zinc-650 hover:text-zinc-900 shadow-sm">
             <svg className="h-4 w-4" viewBox="0 0 23 23" fill="currentColor">
               <path d="M0 0h11v11H0z" fill="#F25022"/>
               <path d="M12 0h11v11H12z" fill="#7FBA00"/>
@@ -183,7 +192,7 @@ export default function Register() {
 
       <div className="text-center text-[11px] text-zinc-500">
         Already have an account?{" "}
-        <Link to="/login" className="font-bold text-white hover:underline transition-all">
+        <Link to="/login" className="font-bold text-primary hover:underline transition-all">
           Sign in
         </Link>
       </div>

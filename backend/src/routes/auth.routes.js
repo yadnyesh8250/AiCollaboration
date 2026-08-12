@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, getMe, logout, logoutAll, refresh, googleLogin } from "../controllers/auth.controller.js";
+import { register, login, getMe, logout, logoutAll, refresh, googleLogin, githubInitiate, githubCallback } from "../controllers/auth.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { authLimiter } from "../middleware/rateLimit.middleware.js";
 import { validate } from "../middleware/validation.middleware.js";
@@ -11,6 +11,8 @@ const router = Router();
 router.post("/register", authLimiter, validate(registerSchema), register);
 router.post("/login", authLimiter, validate(loginSchema), login);
 router.post("/google", authLimiter, googleLogin);
+router.get("/github", githubInitiate);
+router.get("/github/callback", githubCallback);
 router.post("/logout", logout);
 router.post("/refresh", authLimiter, validate(refreshSchema), refresh);
 

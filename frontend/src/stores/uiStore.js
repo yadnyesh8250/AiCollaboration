@@ -8,6 +8,7 @@ export const useUIStore = create((set) => ({
   activeWorkspaceId: null,
   activeOrgId: null,
   activeChannelId: null,
+  copilotPrompt: null,
 
   toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
   setSidebarCollapsed: (collapsed) => set({ isSidebarCollapsed: collapsed }),
@@ -16,4 +17,6 @@ export const useUIStore = create((set) => ({
   setCommandPalette: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
   setContext: (orgId, workspaceId, channelId = null) =>
     set({ activeOrgId: orgId, activeWorkspaceId: workspaceId, activeChannelId: channelId }),
+  openCopilot: (prompt) => set({ activeRightPanel: "AI_COPILOT", copilotPrompt: prompt }),
+  clearCopilotPrompt: () => set({ copilotPrompt: null }),
 }));

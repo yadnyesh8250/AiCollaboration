@@ -219,7 +219,7 @@ export default function Sidebar() {
   return (
     <>
       <div
-        className={`h-screen bg-white border-r border-border flex flex-col transition-all duration-300 fixed lg:static inset-y-0 left-0 z-40 select-none ${
+        className={`h-screen bg-zinc-50/80 backdrop-blur-md border-r border-border flex flex-col transition-all duration-300 fixed lg:static inset-y-0 left-0 z-40 select-none ${
           isSidebarCollapsed ? "-translate-x-full lg:translate-x-0 lg:w-[60px]" : "translate-x-0 lg:w-[240px]"
         }`}
       >

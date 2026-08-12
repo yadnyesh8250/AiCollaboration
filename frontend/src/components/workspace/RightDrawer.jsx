@@ -7,7 +7,7 @@ import { api } from "../../services/api/client";
 export default function RightDrawer() {
   const { workspaceId } = useParams();
   const { user } = useAuthStore();
-  const { activeRightPanel, setRightPanel } = useUIStore();
+  const { activeRightPanel, setRightPanel, copilotPrompt, clearCopilotPrompt } = useUIStore();
 
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -134,6 +134,14 @@ export default function RightDrawer() {
   const handleQuickAction = (text) => {
     handleSend({ textOverride: text });
   };
+
+  useEffect(() => {
+    if (activeRightPanel === "AI_COPILOT" && copilotPrompt) {
+      const prompt = copilotPrompt;
+      clearCopilotPrompt();
+      handleQuickAction(prompt);
+    }
+  }, [copilotPrompt, activeRightPanel, clearCopilotPrompt]);
 
   const parseMessageText = (text) => {
     const actionRegex = /\[([^\]]+)\]/g;

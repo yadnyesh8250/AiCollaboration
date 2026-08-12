@@ -82,6 +82,18 @@ export const getAITools = () => {
         },
         required: ["query"]
       }
+    },
+    {
+      name: "searchUIUXDesign",
+      description: "Search the local UI/UX Pro Max design database for colors, typography, styles, layout optimization, landing pages, react performance, or chart selection recommendations.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          query: { type: "STRING", description: "Design topic, style, colors, charts, or category (e.g. 'glassmorphism', 'fintech color palette', 'bar chart')" },
+          domain: { type: "STRING", enum: ["style", "color", "chart", "landing", "product", "ux", "typography", "react", "web"], description: "Specific design domain filter (optional)" }
+        },
+        required: ["query"]
+      }
     }
   ];
 };

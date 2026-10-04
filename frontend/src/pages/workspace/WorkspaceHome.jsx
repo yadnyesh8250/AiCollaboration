@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../services/api/client";
 import { useAuthStore } from "../../stores/authStore";
@@ -11,31 +11,19 @@ import WorkspaceHealthCard from "../../components/workspace/WorkspaceHealthCard"
 import SprintPlannerModal from "../../components/workspace/SprintPlannerModal";
 import GitHubIntegrationModal from "../../components/workspace/GitHubIntegrationModal";
 import WorkspaceMemoryModal from "../../components/workspace/WorkspaceMemoryModal";
-import { 
-  ClipboardList, 
-  Zap, 
-  CheckCircle2, 
-  Users, 
-  Sparkles, 
-  Layers, 
-  GitPullRequest, 
-  Brain, 
-  Plus, 
-  Bot,
-  BarChart2,
-  BookOpen,
-  CalendarDays,
-  FileText
-} from "lucide-react";
 
+/* ══════════════════════════════════════════════════════
+   A-Collab Workspace Home — Stitch Workspace OS Design
+   ══════════════════════════════════════════════════════ */
 export default function WorkspaceHome() {
   const { workspaceId } = useParams();
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { activeRightPanel, setRightPanel, openCopilot } = useUIStore();
+  const { activeRightPanel, setRightPanel, openCopilot, setCommandPalette } = useUIStore();
 
   // Greeting
-  const [greeting, setGreeting] = useState("Welcome back");
+  const [greeting, setGreeting] = useState("Good morning");
   useEffect(() => {
     const hrs = new Date().getHours();
     if (hrs < 12) setGreeting("Good morning");
@@ -43,7 +31,11 @@ export default function WorkspaceHome() {
     else setGreeting("Good evening");
   }, []);
 
-  // Modal states
+  // Filter tab for "My Work"
+  const [workFilterTab, setWorkFilterTab] = useState("all");
+  const [quickAiPrompt, setQuickAiPrompt] = useState("");
+
+  // Modals
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
@@ -51,6 +43,7 @@ export default function WorkspaceHome() {
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
   const [isMemoryModalOpen, setIsMemoryModalOpen] = useState(false);
 
+  // Form states
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDesc, setTaskDesc] = useState("");
   const [taskPriority, setTaskPriority] = useState("MEDIUM");
@@ -91,6 +84,24 @@ export default function WorkspaceHome() {
     queryKey: ["notifications"],
     queryFn: () => api.get("/notifications").then((r) => r.data.notifications || []),
   });
+
+  // Global keyboard shortcuts (C for new task, Cmd+J for AI)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) {
+        return;
+      }
+      if (e.key === "c" || e.key === "C") {
+        e.preventDefault();
+        setIsTaskModalOpen(true);
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === "j" || e.key === "J")) {
+        e.preventDefault();
+        openCopilot();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [openCopilot]);
 
   // Real-time Socket.io invalidators
   useEffect(() => {
@@ -146,7 +157,10 @@ export default function WorkspaceHome() {
   const createTaskMutation = useMutation({
     mutationFn: (data) => api.post(`/workspaces/${workspaceId}/tasks`, data),
     onSuccess: () => {
-      setIsTaskModalOpen(false); setTaskTitle(""); setTaskDesc(""); setTaskPriority("MEDIUM");
+      setIsTaskModalOpen(false);
+      setTaskTitle("");
+      setTaskDesc("");
+      setTaskPriority("MEDIUM");
       queryClient.invalidateQueries({ queryKey: ["workspaceTasks", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["workspaceDashboard", workspaceId] });
     },
@@ -154,9 +168,22 @@ export default function WorkspaceHome() {
 
   const createDocMutation = useMutation({
     mutationFn: (data) => api.post(`/workspaces/${workspaceId}/documents`, data),
-    onSuccess: () => {
-      setIsDocModalOpen(false); setDocTitle("");
+    onSuccess: (res) => {
+      setIsDocModalOpen(false);
+      setDocTitle("");
       queryClient.invalidateQueries({ queryKey: ["workspaceDocsList", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["workspaceDashboard", workspaceId] });
+      const newDocId = res.data?.document?.id;
+      if (newDocId) {
+        navigate(`/workspaces/${workspaceId}/docs`);
+      }
+    },
+  });
+
+  const updateTaskStatusMutation = useMutation({
+    mutationFn: ({ taskId, status }) => api.patch(`/workspaces/${workspaceId}/tasks/${taskId}`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaceTasks", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["workspaceDashboard", workspaceId] });
     },
   });
@@ -164,7 +191,12 @@ export default function WorkspaceHome() {
   const handleCreateTask = (e) => {
     e.preventDefault();
     if (!taskTitle.trim()) return;
-    createTaskMutation.mutate({ title: taskTitle.trim(), description: taskDesc.trim(), priority: taskPriority, status: "TODO" });
+    createTaskMutation.mutate({
+      title: taskTitle.trim(),
+      description: taskDesc.trim(),
+      priority: taskPriority,
+      status: "TODO"
+    });
   };
 
   const handleCreateDoc = (e) => {
@@ -173,87 +205,60 @@ export default function WorkspaceHome() {
     createDocMutation.mutate({ title: docTitle.trim(), visibility: "WORKSPACE" });
   };
 
-  // Onboarding milestones
-  const milestones = [
-    { label: "Invite teammates", desc: "Add collaborators to your workspace", done: members.length > 1 },
-    { label: "Create first task", desc: "Populate the project board", done: tasks.length > 0 },
-    { label: "Write a document", desc: "Start your team knowledge base", done: docs.length > 0 },
-    { label: "Open AI Copilot", desc: "Let CollabAI help your team work", done: activeRightPanel === "AI_COPILOT" },
-  ];
-  const completed = milestones.filter((m) => m.done).length;
-  const progress = Math.round((completed / milestones.length) * 100);
-
-  const stats = [
-    { label: "Open Tasks", value: tasks.filter((t) => t.status !== "DONE").length, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200/60", icon: <ClipboardList className="h-5 w-5 text-amber-650" /> },
-    { label: "In Progress", value: tasks.filter((t) => t.status === "IN_PROGRESS").length, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200/60", icon: <Zap className="h-5 w-5 text-blue-600" /> },
-    { label: "Completed", value: tasks.filter((t) => t.status === "DONE").length, color: "text-green-600", bg: "bg-green-50", border: "border-green-200/60", icon: <CheckCircle2 className="h-5 w-5 text-green-650" /> },
-    { label: "Team Size", value: members.length, color: "text-primary", bg: "bg-primary/5", border: "border-primary/20", icon: <Users className="h-5 w-5 text-primary" /> },
-  ];
-
-  // Calendar
-  const getCalendarDays = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const totalDays = new Date(year, month + 1, 0).getDate();
-    const days = [];
-    for (let i = 0; i < (firstDay === 0 ? 6 : firstDay - 1); i++) days.push(null);
-    for (let i = 1; i <= totalDays; i++) days.push(new Date(year, month, i));
-    return days;
-  };
-  const calendarDays = getCalendarDays();
-  const monthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
-  const today = new Date().getDate();
-
-  // Calculations
-  const priorityMap = {
-    URGENT: { label: "Urgent", className: "ac-badge-red" },
-    HIGH: { label: "High", className: "ac-badge-amber" },
-    MEDIUM: { label: "Medium", className: "ac-badge-teal" },
-    LOW: { label: "Low", className: "ac-badge-gray" },
-  };
-
-  // 1. My Work
-  const myTasks = tasks.filter(t => t.assignedTo === user?.id && t.status !== "DONE");
-  const sortedMyTasks = [...myTasks].sort((a, b) => {
-    if (a.dueDate && b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate);
-    if (a.dueDate) return -1;
-    if (b.dueDate) return 1;
-    const priorityOrder = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-    return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
+  // Calculations for My Tasks
+  const myTasks = tasks.filter(t => t.assignedTo === user?.id || !t.assignedTo);
+  const overdueTasks = myTasks.filter(t => {
+    if (!t.dueDate || t.status === "DONE") return false;
+    return new Date(t.dueDate) < new Date();
   });
-
-  const tasksDueToday = myTasks.filter(t => {
-    if (!t.dueDate) return false;
+  const dueTodayTasks = myTasks.filter(t => {
+    if (!t.dueDate || t.status === "DONE") return false;
     const d = new Date(t.dueDate);
     const today = new Date();
     return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   });
+  const inProgressTasks = myTasks.filter(t => t.status === "IN_PROGRESS");
+  const upcomingTasks = myTasks.filter(t => {
+    if (!t.dueDate || t.status === "DONE") return false;
+    return new Date(t.dueDate) > new Date();
+  });
 
-  const unreadNotifications = notifications.filter(n => !n.isRead);
+  // Filtered list based on active tab
+  let displayedTasks = myTasks;
+  if (workFilterTab === "today") displayedTasks = dueTodayTasks;
+  else if (workFilterTab === "overdue") displayedTasks = overdueTasks;
+  else if (workFilterTab === "progress") displayedTasks = inProgressTasks;
+  else if (workFilterTab === "upcoming") displayedTasks = upcomingTasks;
 
-  // 2. Sprints
-  const activeSprint = sprints.find(s => s.status === "ACTIVE");
+  // Active Sprint
+  const activeSprint = sprints.find(s => s.status === "ACTIVE") || sprints[0];
   let sprintProgress = 0;
   let completedSprintTasksCount = 0;
   let totalSprintTasksCount = 0;
   let sprintTasksList = [];
+  let inProgressCount = 0;
+  let blockedCount = 0;
+  let todoCount = 0;
+
   if (activeSprint) {
     sprintTasksList = activeSprint.tasks?.map(st => st.task).filter(Boolean) || [];
     totalSprintTasksCount = sprintTasksList.length;
     completedSprintTasksCount = sprintTasksList.filter(t => t.status === "DONE").length;
+    inProgressCount = sprintTasksList.filter(t => t.status === "IN_PROGRESS").length;
+    blockedCount = sprintTasksList.filter(t => t.status === "BLOCKED").length;
+    todoCount = sprintTasksList.filter(t => t.status === "TODO").length;
     sprintProgress = totalSprintTasksCount > 0 ? Math.round((completedSprintTasksCount / totalSprintTasksCount) * 100) : 0;
   }
 
-  // 3. Team Activity (Recent Work)
+  // Activity stream
   const recentActivityItems = [];
   tasks.forEach(t => {
     recentActivityItems.push({
       id: `task-${t.id}`,
       title: t.title,
-      type: "Task",
+      type: "task",
       updatedAt: new Date(t.updatedAt),
+      creator: t.assignee?.firstName || t.assignee?.username || "Teammate",
       link: `/workspaces/${workspaceId}/tasks`
     });
   });
@@ -261,12 +266,13 @@ export default function WorkspaceHome() {
     recentActivityItems.push({
       id: `doc-${d.id}`,
       title: d.title,
-      type: "Document",
+      type: "doc",
       updatedAt: new Date(d.updatedAt),
+      creator: d.author?.firstName || d.author?.username || "Teammate",
       link: `/workspaces/${workspaceId}/docs`
     });
   });
-  const sortedActivity = recentActivityItems.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5);
+  const sortedActivity = recentActivityItems.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6);
 
   const getRelativeTime = (date) => {
     const now = new Date();
@@ -279,359 +285,570 @@ export default function WorkspaceHome() {
     return date.toLocaleDateString([], { month: "short", day: "numeric" });
   };
 
-  // 4. CollabAI Context
-  const tasksDueThisWeek = tasks.filter(t => {
-    if (!t.dueDate || t.status === "DONE") return false;
-    const d = new Date(t.dueDate);
-    const now = new Date();
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-    const endOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
-    return d >= startOfWeek && d <= endOfWeek;
-  }).length;
-
-  if (tasksLoading || sprintsLoading) {
-    return (
-      <div className="h-full overflow-y-auto bg-zinc-50/50">
-        <div className="max-w-6xl mx-auto px-6 py-8 space-y-8 animate-pulse">
-          <div className="space-y-2 border-b border-zinc-200/60 pb-6">
-            <div className="h-8 w-48 bg-zinc-200 rounded" />
-            <div className="h-4 w-72 bg-zinc-150 rounded mt-1.5" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="h-64 bg-white border border-zinc-200/80 rounded-2xl p-6" />
-            <div className="h-64 bg-white border border-zinc-200/80 rounded-2xl p-6" />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const displayName = user?.firstName || user?.username || "Yadnyesh";
 
   return (
-    <div className="h-full overflow-y-auto bg-zinc-50/50 select-none">
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+    <div className="h-full overflow-y-auto bg-surface-ws select-none">
+      <div className="p-space-lg max-w-7xl mx-auto w-full space-y-space-lg">
         
-        {/* Header greeting */}
-        <div className="border-b border-zinc-200/60 pb-6">
-          <h1 className="text-3xl font-semibold text-zinc-900 tracking-tight">
-            {greeting}, <span className="text-primary">{user?.firstName || user?.username || "there"}</span> 👋
-          </h1>
-          <p className="text-sm text-zinc-550 mt-1.5 font-medium">
-            Here's what's happening in your workspace today.
-          </p>
-        </div>
-
-        {/* Proactive AI Insights (Only if returned from real backend endpoint) */}
-        <WorkspaceHealthCard onOpenMeetingModal={() => setIsMeetingModalOpen(true)} />
-
-        {/* Two-Column Grid: My Work & Current Sprint */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* My Work Section */}
-          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-                <h2 className="text-sm font-bold text-zinc-800 tracking-tight uppercase">My Work</h2>
-                <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium">
-                  {tasksDueToday.length > 0 && (
-                    <span className="bg-red-50 text-red-650 px-2 py-0.5 rounded-full border border-red-200/60">
-                      {tasksDueToday.length} due today
-                    </span>
-                  )}
-                  {dashboardData?.cards?.unreadMessages > 0 && (
-                    <span className="bg-blue-50 text-blue-650 px-2 py-0.5 rounded-full border border-blue-200/60">
-                      {dashboardData.cards.unreadMessages} messages
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {sortedMyTasks.length === 0 ? (
-                <div className="py-8 text-center text-sm text-zinc-400 font-medium">
-                  No tasks assigned to you right now. Nice work!
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[220px] overflow-y-auto no-scrollbar">
-                  {sortedMyTasks.slice(0, 5).map((task) => {
-                    const p = priorityMap[task.priority] || priorityMap.MEDIUM;
-                    return (
-                      <Link
-                        key={task.id}
-                        to={`/workspaces/${workspaceId}/tasks`}
-                        className="flex items-center justify-between p-3 rounded-xl border border-zinc-100 hover:border-zinc-200/80 hover:bg-zinc-50/50 transition-all cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3 overflow-hidden">
-                          <div className={`h-2 w-2 rounded-full shrink-0 ${
-                            task.status === "DONE" ? "bg-green-500" : task.status === "IN_PROGRESS" ? "bg-blue-500" : task.status === "IN_REVIEW" ? "bg-amber-500" : "bg-zinc-300"
-                          }`} />
-                          <p className="text-sm font-semibold text-zinc-700 truncate">{task.title}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {task.dueDate && (
-                            <span className="text-xs text-zinc-450 font-medium">
-                              {new Date(task.dueDate).toLocaleDateString([], { month: "short", day: "numeric" })}
-                            </span>
-                          )}
-                          <span className={`ac-badge ${p.className}`}>{p.label}</span>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+        {/* ══ Top Greeting & Dispatch Actions ══ */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md pb-space-xs">
+          <div className="space-y-1">
+            <div className="flex items-center gap-space-sm">
+              <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
+                {greeting}, {displayName}
+              </h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-container/30 text-on-secondary-container font-label-sm text-label-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
+                All systems normal
+              </span>
             </div>
-
-            <div className="pt-4 border-t border-zinc-100 mt-4 flex justify-end">
-              <Link
-                to={`/workspaces/${workspaceId}/tasks`}
-                className="text-xs font-bold text-primary hover:text-[#087F66] transition-colors"
-              >
-                View my work →
-              </Link>
-            </div>
+            <p className="font-body-md text-body-md text-on-surface-variant">
+              Here's what needs your attention today across A-Collab Development.
+            </p>
           </div>
 
-          {/* Current Sprint Section */}
-          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-                <h2 className="text-sm font-bold text-zinc-800 tracking-tight uppercase">Current Sprint</h2>
-                {activeSprint && (
-                  <span className="text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200/60 px-2 py-0.5 rounded-full">
-                    Active
-                  </span>
-                )}
-              </div>
-
-              {!activeSprint ? (
-                <div className="py-8 text-center space-y-3">
-                  <p className="text-sm text-zinc-400 font-medium">No active sprint cycle currently running.</p>
-                  <button
-                    onClick={() => setIsSprintModalOpen(true)}
-                    className="h-8.5 px-4 rounded-lg bg-primary hover:bg-[#087F66] text-white text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
-                  >
-                    <Layers className="h-3.5 w-3.5" />
-                    <span>Open Sprint Planner</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-base font-bold text-zinc-900">{activeSprint.name}</h3>
-                    <p className="text-xs text-zinc-500 mt-0.5 font-medium">
-                      Ends {new Date(activeSprint.endDate).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
-                    </p>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs font-semibold text-zinc-550">
-                      <span>Progress</span>
-                      <span>{sprintProgress}% ({completedSprintTasksCount} / {totalSprintTasksCount} tasks)</span>
-                    </div>
-                    <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden border border-zinc-200/40">
-                      <div
-                        className="h-full bg-primary transition-all duration-700"
-                        style={{ width: `${sprintProgress}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2.5 pt-2">
-                    <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-2.5 text-center">
-                      <p className="text-xs text-zinc-550 font-medium">To Do</p>
-                      <p className="text-base font-bold text-zinc-800 mt-0.5">
-                        {sprintTasksList.filter(t => t.status === "TODO").length}
-                      </p>
-                    </div>
-                    <div className="bg-blue-50/40 border border-blue-100/50 rounded-xl p-2.5 text-center">
-                      <p className="text-xs text-zinc-550 font-medium">In Progress</p>
-                      <p className="text-base font-bold text-blue-650 mt-0.5">
-                        {sprintTasksList.filter(t => t.status === "IN_PROGRESS").length}
-                      </p>
-                    </div>
-                    <div className="bg-emerald-50/40 border border-emerald-100/50 rounded-xl p-2.5 text-center">
-                      <p className="text-xs text-zinc-550 font-medium">Done</p>
-                      <p className="text-base font-bold text-emerald-650 mt-0.5">
-                        {completedSprintTasksCount}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {activeSprint && (
-              <div className="pt-4 border-t border-zinc-100 mt-4 flex justify-end">
-                <Link
-                  to={`/workspaces/${workspaceId}/tasks`}
-                  className="text-xs font-bold text-primary hover:text-[#087F66] transition-colors"
-                >
-                  Open Board →
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Two-Column Grid: Recent Activity & CollabAI */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
-          
-          {/* Recent Workspace Activity */}
-          <div className="lg:col-span-2 bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold text-zinc-800 tracking-tight uppercase border-b border-zinc-100 pb-3">
-              Recent Workspace Activity
-            </h2>
-
-            {sortedActivity.length === 0 ? (
-              <div className="py-8 text-center text-sm text-zinc-400 font-medium">
-                No recent activity in this workspace yet. Create tasks or documents to see updates!
-              </div>
-            ) : (
-              <div className="divide-y divide-zinc-100 max-h-[260px] overflow-y-auto no-scrollbar">
-                {sortedActivity.map((item) => (
-                  <Link
-                    key={item.id}
-                    to={item.link}
-                    className="flex items-center justify-between py-3.5 first:pt-0 last:pb-0 hover:bg-zinc-50/50 rounded-lg px-2 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="h-8 w-8 rounded-lg bg-zinc-50 border border-zinc-200/60 flex items-center justify-center text-xs font-semibold text-zinc-500 shrink-0">
-                        {item.type === "Task" ? <ClipboardList className="h-4 w-4 text-zinc-450" /> : <BookOpen className="h-4 w-4 text-zinc-450" />}
-                      </div>
-                      <div className="overflow-hidden">
-                        <p className="text-sm font-semibold text-zinc-800 truncate">{item.title}</p>
-                        <p className="text-xs text-zinc-400 mt-0.5 font-medium">{item.type}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-zinc-450 font-medium shrink-0">
-                      Updated {getRelativeTime(item.updatedAt)}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* CollabAI Assistant Context Widget */}
-          <div className="bg-white border border-zinc-200/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-zinc-100 pb-3">
-                <div className="h-6 w-6 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
-                  <Bot className="h-3.5 w-3.5 text-violet-500" />
-                </div>
-                <h2 className="text-sm font-bold text-zinc-800 tracking-tight uppercase">CollabAI</h2>
-              </div>
-
-              <p className="text-xs text-zinc-500 leading-relaxed font-medium">
-                I can help you analyze, search, and automate workflows in this workspace.
-              </p>
-
-              {/* Workspace Context Data */}
-              <div className="bg-zinc-50/50 border border-zinc-100 rounded-xl p-3 space-y-2">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Workspace Context</p>
-                <div className="space-y-1.5 text-xs text-zinc-650 font-medium">
-                  <p className="flex items-center justify-between">
-                    <span>Blocked tasks:</span>
-                    <span className="font-bold text-zinc-850">{tasks.filter(t => t.status === "BLOCKED").length}</span>
-                  </p>
-                  <p className="flex items-center justify-between">
-                    <span>Tasks due this week:</span>
-                    <span className="font-bold text-zinc-850">{tasksDueThisWeek}</span>
-                  </p>
-                  <p className="flex items-center justify-between">
-                    <span>Unread notifications:</span>
-                    <span className="font-bold text-zinc-850">{unreadNotifications.length}</span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Prompt Suggestions */}
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Suggested prompts</p>
-                <div className="space-y-1.5">
-                  {[
-                    { label: "What's blocking the sprint?", prompt: "What is blocking sprint?" },
-                    { label: "What do I need to finish today?", prompt: "What do I need to finish today?" },
-                    { label: "Summarize recent activity", prompt: "Summarize recent activity in this workspace." }
-                  ].map((s, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => openCopilot(s.prompt)}
-                      className="w-full text-left px-3 py-2 rounded-xl bg-violet-50/50 border border-violet-100 hover:bg-violet-100/60 hover:border-violet-200 text-xs font-semibold text-violet-750 transition-all cursor-pointer"
-                    >
-                      {s.label} →
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions Row */}
-        <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 shadow-sm space-y-3.5">
-          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Quick Actions</p>
-          <div className="flex items-center flex-wrap gap-2.5">
-            <button
-              onClick={() => setIsTaskModalOpen(true)}
-              className="h-9 px-4 rounded-lg bg-zinc-50 border border-zinc-200 hover:bg-zinc-100 text-xs font-bold text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <Plus className="h-3.5 w-3.5 text-zinc-450" />
-              <span>New Task</span>
-            </button>
-
-            <button
-              onClick={() => setIsDocModalOpen(true)}
-              className="h-9 px-4 rounded-lg bg-zinc-50 border border-zinc-200 hover:bg-zinc-100 text-xs font-bold text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
-            >
-              <Plus className="h-3.5 w-3.5 text-zinc-455" />
-              <span>New Document</span>
-            </button>
-
+          <div className="flex flex-wrap items-center gap-space-xs">
             <Link
               to={`/workspaces/${workspaceId}/settings`}
-              className="h-9 px-4 rounded-lg bg-zinc-50 border border-zinc-200 hover:bg-zinc-100 text-xs font-bold text-zinc-700 transition-all cursor-pointer flex items-center gap-1.5"
+              className="h-8 px-space-sm bg-surface-container-lowest hover:bg-surface-container-low text-on-surface rounded-lg shadow-sm font-body-sm text-body-sm flex items-center gap-1.5 transition-colors border border-outline-variant/30"
             >
-              <Users className="h-3.5 w-3.5 text-zinc-450" />
-              <span>Invite Teammate</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>person_add</span>
+              <span>Invite Member</span>
             </Link>
 
             <button
-              onClick={() => setRightPanel(activeRightPanel === "AI_COPILOT" ? null : "AI_COPILOT")}
-              className="h-9 px-4 rounded-lg bg-primary hover:bg-[#087F66] text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+              onClick={() => setIsDocModalOpen(true)}
+              className="h-8 px-space-sm bg-surface-container-lowest hover:bg-surface-container-low text-on-surface rounded-lg shadow-sm font-body-sm text-body-sm flex items-center gap-1.5 transition-colors border border-outline-variant/30"
             >
-              <Bot className="h-3.5 w-3.5 text-white/90 shrink-0" />
-              <span>Ask CollabAI</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>note_add</span>
+              <span>New Document</span>
             </button>
+
+            <button
+              onClick={() => setIsTaskModalOpen(true)}
+              className="h-8 px-space-sm bg-primary text-on-primary hover:bg-primary-container transition-colors rounded-lg shadow-sm font-body-sm text-body-sm font-medium flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add_task</span>
+              <span>New Task</span>
+              <span className="font-label-sm text-label-sm opacity-70 ml-0.5 font-mono px-1 py-0.2 rounded bg-black/20">C</span>
+            </button>
+
+            <button
+              onClick={() => openCopilot()}
+              className="h-8 px-space-sm bg-secondary-fixed text-on-secondary-fixed hover:bg-secondary-fixed-dim transition-colors rounded-lg font-body-sm text-body-sm font-semibold flex items-center gap-1.5 shadow-sm"
+            >
+              <span className="material-symbols-outlined text-secondary" style={{ fontSize: 16 }}>auto_awesome</span>
+              <span>Ask CollabAI</span>
+              <kbd className="font-label-sm text-label-sm px-1 py-0.2 rounded bg-on-secondary-fixed/10 text-on-secondary-fixed font-mono">⌘J</kbd>
+            </button>
+          </div>
+        </div>
+
+        {/* ══ Proactive Health Card (if triggered) ══ */}
+        <WorkspaceHealthCard onOpenMeetingModal={() => setIsMeetingModalOpen(true)} />
+
+        {/* ══ Core Grid: 8 Cols Primary Work Area + 4 Cols Intelligence Rail ══ */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+          
+          {/* ── Left 8 Columns ── */}
+          <div className="lg:col-span-8 flex flex-col gap-space-lg">
+            
+            {/* 1. MY WORK SECTION */}
+            <div className="bg-surface-container-lowest rounded-xl shadow-xs border border-outline-variant/20 overflow-hidden">
+              <div className="p-space-md flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm bg-surface-container-lowest border-b border-surface-container">
+                <div className="flex items-center gap-space-sm">
+                  <span className="material-symbols-outlined text-primary text-xl">checklist</span>
+                  <h2 className="font-headline-sm text-headline-sm text-on-surface">My Work</h2>
+                  <span className="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-medium">
+                    {displayedTasks.length} active
+                  </span>
+                </div>
+
+                {/* Segmented Filter Tabs */}
+                <div className="flex items-center gap-1 p-0.5 bg-surface-container-low rounded-lg">
+                  <button
+                    onClick={() => setWorkFilterTab("all")}
+                    className={`px-2.5 py-1 rounded-md font-label-md text-label-md font-medium transition-all ${
+                      workFilterTab === "all" ? "bg-surface-container-lowest text-on-surface shadow-xs" : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    All Tasks <span className="ml-1 opacity-70 font-semibold">{myTasks.length}</span>
+                  </button>
+                  <button
+                    onClick={() => setWorkFilterTab("today")}
+                    className={`px-2.5 py-1 rounded-md font-label-md text-label-md font-medium transition-all ${
+                      workFilterTab === "today" ? "bg-surface-container-lowest text-on-surface shadow-xs" : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Due Today <span className="text-secondary font-semibold ml-1">{dueTodayTasks.length}</span>
+                  </button>
+                  <button
+                    onClick={() => setWorkFilterTab("overdue")}
+                    className={`px-2.5 py-1 rounded-md font-label-md text-label-md font-medium transition-all ${
+                      workFilterTab === "overdue" ? "bg-surface-container-lowest text-on-surface shadow-xs" : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Overdue <span className="text-error-stitch font-semibold ml-1">{overdueTasks.length}</span>
+                  </button>
+                  <button
+                    onClick={() => setWorkFilterTab("progress")}
+                    className={`px-2.5 py-1 rounded-md font-label-md text-label-md font-medium transition-all ${
+                      workFilterTab === "progress" ? "bg-surface-container-lowest text-on-surface shadow-xs" : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    In Progress <span className="ml-1 opacity-70">{inProgressTasks.length}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Task List Rows */}
+              <div className="divide-y divide-surface-container">
+                {displayedTasks.length === 0 ? (
+                  <div className="p-space-xl text-center">
+                    <span className="material-symbols-outlined text-outline text-3xl mb-1">task_alt</span>
+                    <p className="font-body-md text-body-md text-on-surface-variant">No tasks match this filter. Everything is up to date!</p>
+                  </div>
+                ) : (
+                  displayedTasks.slice(0, 5).map((task) => {
+                    const isDone = task.status === "DONE";
+                    const isUrgent = task.priority === "URGENT";
+                    const isHigh = task.priority === "HIGH";
+                    const isMed = task.priority === "MEDIUM";
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="group flex items-center justify-between p-space-md hover:bg-surface-container-low transition-colors cursor-pointer bg-surface-container-lowest"
+                        onClick={() => navigate(`/workspaces/${workspaceId}/tasks`)}
+                      >
+                        <div className="flex items-start gap-space-sm min-w-0 pr-space-md">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateTaskStatusMutation.mutate({
+                                taskId: task.id,
+                                status: isDone ? "TODO" : "DONE"
+                              });
+                            }}
+                            className={`mt-0.5 w-4 h-4 rounded-sm border flex items-center justify-center transition-colors flex-shrink-0 ${
+                              isDone ? "bg-secondary text-white border-secondary" : "border-outline-variant hover:border-primary hover:text-primary text-transparent"
+                            }`}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>check</span>
+                          </button>
+
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-label-sm text-label-sm text-outline font-mono">
+                                TSK-{task.id?.slice(0, 4) || "101"}
+                              </span>
+                              <span className={`font-body-md text-body-md font-medium text-on-surface truncate group-hover:text-primary transition-colors ${isDone ? "line-through text-outline" : ""}`}>
+                                {task.title}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-space-sm mt-1 text-on-surface-variant font-label-sm text-label-sm">
+                              <span className="flex items-center gap-1">
+                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>folder_open</span>
+                                {task.status || "Core"}
+                              </span>
+                              <span className="text-outline-variant">•</span>
+                              <span>
+                                {task.dueDate ? new Date(task.dueDate).toLocaleDateString([], { month: "short", day: "numeric" }) : "No due date"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-space-md flex-shrink-0">
+                          <span className={`px-2 py-0.5 rounded font-label-sm text-label-sm font-medium ${
+                            isUrgent ? "bg-error-container/40 text-error-stitch" :
+                            isHigh ? "bg-error-container/20 text-error-stitch" :
+                            isMed ? "bg-surface-container-high text-on-surface-variant" :
+                            "bg-surface-container text-outline"
+                          }`}>
+                            {task.priority || "Medium"}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded font-label-sm text-label-sm ${
+                            isDone ? "bg-secondary-container/40 text-on-secondary-container" :
+                            task.status === "IN_PROGRESS" ? "bg-primary-container/20 text-primary" :
+                            "bg-surface-container text-on-surface"
+                          }`}>
+                            {task.status || "Todo"}
+                          </span>
+                          <div className="w-6 h-6 rounded-full bg-primary-container text-on-primary font-bold text-xs flex items-center justify-center">
+                            {displayName.charAt(0).toUpperCase()}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* 2. CURRENT SPRINT PROGRESS */}
+            <div className="bg-surface-container-lowest rounded-xl shadow-xs border border-outline-variant/20 p-space-lg flex flex-col gap-space-md">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-xs">
+                <div>
+                  <div className="flex items-center gap-space-xs text-on-surface">
+                    <span className="material-symbols-outlined text-secondary text-lg">surfing</span>
+                    <h3 className="font-headline-sm text-headline-sm font-semibold tracking-tight">
+                      {activeSprint ? activeSprint.name : "Sprint Cycle: Core Engine"}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-secondary-container/40 text-on-secondary-container font-label-sm text-label-sm font-medium">
+                      Active
+                    </span>
+                  </div>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                    {activeSprint?.goal || "Goal: High performance task orchestration, documents, and real-time collaboration"}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-space-md self-end sm:self-auto">
+                  <span className="font-label-sm text-label-sm font-mono text-outline">
+                    {activeSprint?.endDate ? `Deadline: ${new Date(activeSprint.endDate).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Ongoing"}
+                  </span>
+                  <button
+                    onClick={() => setIsSprintModalOpen(true)}
+                    className="px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface font-label-md text-label-md font-medium transition-colors border border-outline-variant/30"
+                  >
+                    Sprint Planner
+                  </button>
+                </div>
+              </div>
+
+              {/* Segmented Linear Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between font-caption text-caption text-on-surface-variant">
+                  <span>
+                    <strong className="text-on-surface font-semibold">
+                      {completedSprintTasksCount} of {totalSprintTasksCount || tasks.length} tasks
+                    </strong> completed
+                  </span>
+                  <span className="font-mono font-semibold text-secondary">
+                    {sprintProgress}% Velocity
+                  </span>
+                </div>
+
+                <div className="w-full h-3 bg-surface-container rounded-full overflow-hidden flex gap-0.5 p-0.5">
+                  <div
+                    className="h-full bg-secondary rounded-l-full transition-all duration-500"
+                    style={{ width: `${Math.max(sprintProgress, 5)}%` }}
+                    title={`Completed: ${completedSprintTasksCount}`}
+                  />
+                  <div
+                    className="h-full bg-tertiary-fixed-dim transition-all duration-500"
+                    style={{ width: `${Math.min(inProgressCount * 10, 30)}%` }}
+                    title={`In Progress: ${inProgressCount}`}
+                  />
+                  <div
+                    className="h-full bg-error-stitch transition-all duration-500"
+                    style={{ width: `${Math.min(blockedCount * 10, 20)}%` }}
+                    title={`Blocked: ${blockedCount}`}
+                  />
+                  <div
+                    className="h-full bg-surface-container-high rounded-r-full flex-1"
+                    title={`Remaining: ${todoCount}`}
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between pt-1 font-label-sm text-label-sm text-on-surface-variant">
+                  <div className="flex items-center gap-space-md">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-secondary" /> {completedSprintTasksCount} Done
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-tertiary-fixed-dim" /> {inProgressCount} In Progress
+                    </span>
+                    {blockedCount > 0 && (
+                      <span className="flex items-center gap-1.5 text-error-stitch font-medium">
+                        <span className="w-2 h-2 rounded-full bg-error-stitch" /> {blockedCount} Blocked
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-surface-container-highest" /> {todoCount || tasks.length} Backlog
+                    </span>
+                  </div>
+                  <Link
+                    to={`/workspaces/${workspaceId}/tasks`}
+                    className="inline-flex items-center gap-1 text-primary hover:text-secondary font-medium transition-colors"
+                  >
+                    <span>Open Sprint Board</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. RECENT ACTIVITY TIMELINE */}
+            <div className="bg-surface-container-lowest rounded-xl shadow-xs border border-outline-variant/20 p-space-lg flex flex-col gap-space-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-space-xs">
+                  <span className="material-symbols-outlined text-on-surface-variant text-lg">history</span>
+                  <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">Workspace Timeline</h3>
+                </div>
+                <button
+                  onClick={() => setIsMemoryModalOpen(true)}
+                  className="font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface flex items-center gap-1 transition-colors"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>neurology</span>
+                  <span>AI Memory Context</span>
+                </button>
+              </div>
+
+              <div className="relative pl-6 space-y-space-md before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-surface-container-high">
+                {sortedActivity.length === 0 ? (
+                  <p className="font-body-sm text-body-sm text-on-surface-variant py-4">No recent events logged yet.</p>
+                ) : (
+                  sortedActivity.map((act) => (
+                    <div key={act.id} className="relative flex items-start gap-space-sm group">
+                      <span className="absolute -left-6 top-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center text-on-primary shadow-xs">
+                        <span className="material-symbols-outlined" style={{ fontSize: 10 }}>
+                          {act.type === "task" ? "add_task" : "description"}
+                        </span>
+                      </span>
+                      <div className="flex-1 bg-surface-container-low p-space-sm rounded-lg hover:bg-surface-container transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-body-sm text-body-sm font-semibold text-on-surface">{act.creator}</span>
+                            <span className="font-body-sm text-body-sm text-on-surface-variant">
+                              updated {act.type}
+                            </span>
+                          </div>
+                          <span className="font-label-sm text-label-sm text-outline">{getRelativeTime(act.updatedAt)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="material-symbols-outlined text-sm text-primary">
+                            {act.type === "task" ? "checklist" : "description"}
+                          </span>
+                          <Link to={act.link} className="font-body-sm text-body-sm font-medium text-on-surface hover:text-primary transition-colors">
+                            {act.title}
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* ── Right 4 Columns: Intelligence & Presence ── */}
+          <div className="lg:col-span-4 flex flex-col gap-space-lg" id="collab-ai-rail">
+            
+            {/* CollabAI Workspace Intelligence Card */}
+            <div className="bg-surface-container-lowest rounded-xl shadow-xs border border-outline-variant/20 p-space-lg relative overflow-hidden">
+              <div className="flex items-center justify-between pb-space-sm border-b border-surface-container">
+                <div className="flex items-center gap-space-xs">
+                  <div className="w-7 h-7 rounded-lg bg-primary-container text-on-primary flex items-center justify-center shadow-xs">
+                    <span className="material-symbols-outlined text-base">auto_awesome</span>
+                  </div>
+                  <div>
+                    <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">Workspace Intel</h3>
+                    <span className="font-label-sm text-label-sm text-secondary font-medium">A-Collab Context Engine</span>
+                  </div>
+                </div>
+                <span className="w-2.5 h-2.5 rounded-full bg-secondary ring-4 ring-secondary/20" />
+              </div>
+
+              <div className="p-space-sm bg-surface-container-low rounded-lg my-space-sm flex items-start gap-space-xs">
+                <span className="material-symbols-outlined text-secondary text-base mt-0.5">info</span>
+                <p className="font-body-sm text-body-sm text-on-surface">
+                  CollabAI synthesized <strong>{tasks.length} tasks</strong> &amp; <strong>{docs.length} docs</strong> into real-time workflow recommendations.
+                </p>
+              </div>
+
+              {/* Actionable Prompt Cards */}
+              <div className="flex flex-col gap-space-sm mt-space-md">
+                <div className="p-space-md rounded-lg bg-surface-container-lowest border border-outline-variant/30 shadow-xs hover:shadow-sm transition-shadow">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="px-2 py-0.5 rounded bg-error-container/40 text-error-stitch font-label-sm text-label-sm font-medium">
+                      Sprint Analysis
+                    </span>
+                    <span className="font-label-sm text-label-sm text-outline font-mono">Active</span>
+                  </div>
+                  <p className="font-body-sm text-body-sm text-on-surface font-medium mt-1">
+                    Detect blockers and review task assignments for the current sprint
+                  </p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <button
+                      onClick={() => openCopilot("What is blocking sprint?")}
+                      className="h-7 px-space-sm bg-primary text-on-primary text-label-md font-label-md rounded-md font-medium hover:bg-primary-container transition-colors"
+                    >
+                      Resolve Blockers
+                    </button>
+                    <span
+                      onClick={() => openCopilot("What is blocking sprint?")}
+                      className="font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface cursor-pointer"
+                    >
+                      Analyze →
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-space-md rounded-lg bg-surface-container-lowest border border-outline-variant/30 shadow-xs hover:shadow-sm transition-shadow">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="px-2 py-0.5 rounded bg-secondary-container/40 text-on-secondary-container font-label-sm text-label-sm font-medium">
+                      Daily Focus
+                    </span>
+                    <span className="font-label-sm text-label-sm text-outline font-mono">Today</span>
+                  </div>
+                  <p className="font-body-sm text-body-sm text-on-surface font-medium mt-1">
+                    Review tasks due today and priority items requiring sign-off
+                  </p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <button
+                      onClick={() => openCopilot("What do I need to finish today?")}
+                      className="h-7 px-space-sm bg-secondary-fixed text-on-secondary-fixed hover:bg-secondary-fixed-dim text-label-md font-label-md rounded-md font-medium transition-colors"
+                    >
+                      View Priorities
+                    </button>
+                    <span
+                      onClick={() => openCopilot("What do I need to finish today?")}
+                      className="font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface cursor-pointer"
+                    >
+                      Review →
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Command Input */}
+              <div className="mt-space-lg pt-space-sm border-t border-surface-container">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!quickAiPrompt.trim()) return;
+                    openCopilot(quickAiPrompt.trim());
+                    setQuickAiPrompt("");
+                  }}
+                  className="relative flex items-center"
+                >
+                  <input
+                    value={quickAiPrompt}
+                    onChange={(e) => setQuickAiPrompt(e.target.value)}
+                    className="w-full h-9 pl-8 pr-16 bg-surface-container-low hover:bg-surface-container text-on-surface rounded-lg font-body-sm text-body-sm placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary transition-all border border-outline-variant/20"
+                    placeholder="Ask CollabAI about tasks or docs..."
+                    type="text"
+                  />
+                  <span className="material-symbols-outlined text-base absolute left-2 text-primary">auto_awesome</span>
+                  <kbd className="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant absolute right-2 font-mono">⌘J</kbd>
+                </form>
+              </div>
+            </div>
+
+            {/* Team Focus / Live Presence */}
+            <div className="bg-surface-container-lowest rounded-xl shadow-xs border border-outline-variant/20 p-space-md flex flex-col gap-space-sm">
+              <div className="flex items-center justify-between border-b border-surface-container pb-2">
+                <h4 className="font-headline-sm text-headline-sm text-on-surface font-semibold">Active Teammates</h4>
+                <span className="font-label-sm text-label-sm text-secondary font-medium">
+                  {members.length} members
+                </span>
+              </div>
+              <div className="space-y-space-xs pt-1">
+                {members.slice(0, 4).map((m, idx) => (
+                  <div key={m.id || idx} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-container-low transition-colors">
+                    <div className="flex items-center gap-space-sm min-w-0">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-xs">
+                          {(m.user?.firstName || m.user?.username || "U").charAt(0).toUpperCase()}
+                        </div>
+                        <span className="w-2 h-2 rounded-full bg-secondary absolute bottom-0 right-0 ring-1 ring-white" />
+                      </div>
+                      <div className="truncate">
+                        <span className="font-body-sm text-body-sm font-medium text-on-surface block truncate">
+                          {m.user?.firstName ? `${m.user.firstName} ${m.user.lastName || ""}` : m.user?.username || "Teammate"}
+                        </span>
+                        <span className="font-label-sm text-label-sm text-outline truncate block">
+                          {m.role || "MEMBER"}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="font-label-sm text-label-sm text-outline-variant">Active</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Keyboard Shortcuts Cheat-Sheet */}
+            <div className="p-space-md rounded-xl bg-surface-container-low flex flex-col gap-2 border border-outline-variant/20">
+              <span className="font-label-sm text-label-sm uppercase font-semibold text-on-surface-variant tracking-wider">
+                Keyboard shortcuts
+              </span>
+              <div className="grid grid-cols-2 gap-2 text-on-surface-variant font-label-sm text-label-sm">
+                <div className="flex items-center justify-between">
+                  <span>Create Task</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-surface-container-lowest text-on-surface shadow-xs font-mono font-bold">C</kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Search</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-surface-container-lowest text-on-surface shadow-xs font-mono font-bold">⌘K</kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>CollabAI</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-surface-container-lowest text-on-surface shadow-xs font-mono font-bold">⌘J</kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Go to Tasks</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-surface-container-lowest text-on-surface shadow-xs font-mono font-bold">G T</kbd>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
       </div>
 
-      {/* ── Create Task Modal ── */}
+      {/* ══ Create Task Modal ══ */}
       {isTaskModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-border shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-base font-semibold text-zinc-900">Create Task</h3>
-              <button onClick={() => setIsTaskModalOpen(false)} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
+          <div className="w-full max-w-md bg-white rounded-2xl border border-zinc-200 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">add_task</span>
+                <h3 className="text-sm font-semibold text-zinc-900">Create Task</h3>
+              </div>
+              <button
+                onClick={() => setIsTaskModalOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
               </button>
             </div>
             <form onSubmit={handleCreateTask} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Title</label>
-                <input className="ac-input" placeholder="Task title..." value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} autoFocus required />
+                <label className="block text-xs font-medium text-zinc-700 mb-1">Title</label>
+                <input
+                  className="ac-input"
+                  placeholder="Task title..."
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  autoFocus
+                  required
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Description <span className="text-zinc-400 font-normal">(optional)</span></label>
-                <textarea className="ac-textarea min-h-[80px]" placeholder="Describe the task..." value={taskDesc} onChange={(e) => setTaskDesc(e.target.value)} />
+                <label className="block text-xs font-medium text-zinc-700 mb-1">
+                  Description <span className="text-zinc-400 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  className="ac-textarea min-h-[80px]"
+                  placeholder="Describe the task..."
+                  value={taskDesc}
+                  onChange={(e) => setTaskDesc(e.target.value)}
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Priority</label>
-                <select className="ac-select" value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">Priority</label>
+                <select
+                  className="ac-select"
+                  value={taskPriority}
+                  onChange={(e) => setTaskPriority(e.target.value)}
+                >
                   <option value="LOW">Low</option>
                   <option value="MEDIUM">Medium</option>
                   <option value="HIGH">High</option>
@@ -639,8 +856,18 @@ export default function WorkspaceHome() {
                 </select>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setIsTaskModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
-                <button type="submit" disabled={createTaskMutation.isPending} className="btn-primary flex-1">
+                <button
+                  type="button"
+                  onClick={() => setIsTaskModalOpen(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createTaskMutation.isPending}
+                  className="btn-primary flex-1"
+                >
                   {createTaskMutation.isPending ? "Creating..." : "Create Task"}
                 </button>
               </div>
@@ -649,27 +876,48 @@ export default function WorkspaceHome() {
         </div>
       )}
 
-      {/* ── Create Doc Modal ── */}
+      {/* ══ Create Document Modal ══ */}
       {isDocModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-border shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="text-base font-semibold text-zinc-900">Create Document</h3>
-              <button onClick={() => setIsDocModalOpen(false)} className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
+          <div className="w-full max-w-md bg-white rounded-2xl border border-zinc-200 shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">note_add</span>
+                <h3 className="text-sm font-semibold text-zinc-900">New Document</h3>
+              </div>
+              <button
+                onClick={() => setIsDocModalOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
               </button>
             </div>
             <form onSubmit={handleCreateDoc} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1.5">Document Title</label>
-                <input className="ac-input" placeholder="Untitled document..." value={docTitle} onChange={(e) => setDocTitle(e.target.value)} autoFocus required />
+                <label className="block text-xs font-medium text-zinc-700 mb-1">Document Title</label>
+                <input
+                  className="ac-input"
+                  placeholder="e.g. System Architecture RFC..."
+                  value={docTitle}
+                  onChange={(e) => setDocTitle(e.target.value)}
+                  autoFocus
+                  required
+                />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setIsDocModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
-                <button type="submit" disabled={createDocMutation.isPending} className="btn-primary flex-1">
-                  {createDocMutation.isPending ? "Creating..." : "Create Document"}
+                <button
+                  type="button"
+                  onClick={() => setIsDocModalOpen(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createDocMutation.isPending}
+                  className="btn-primary flex-1"
+                >
+                  {createDocMutation.isPending ? "Creating..." : "Create & Edit"}
                 </button>
               </div>
             </form>
@@ -677,11 +925,38 @@ export default function WorkspaceHome() {
         </div>
       )}
 
-      {/* ── Flagship Modals ── */}
-      <MeetingToWorkflowModal isOpen={isMeetingModalOpen} onClose={() => setIsMeetingModalOpen(false)} />
-      <SprintPlannerModal isOpen={isSprintModalOpen} onClose={() => setIsSprintModalOpen(false)} />
-      <GitHubIntegrationModal isOpen={isGitHubModalOpen} onClose={() => setIsGitHubModalOpen(false)} />
-      <WorkspaceMemoryModal isOpen={isMemoryModalOpen} onClose={() => setIsMemoryModalOpen(false)} />
+      {/* ══ Action Modals ══ */}
+      {isMeetingModalOpen && (
+        <MeetingToWorkflowModal
+          isOpen={isMeetingModalOpen}
+          onClose={() => setIsMeetingModalOpen(false)}
+          workspaceId={workspaceId}
+        />
+      )}
+
+      {isSprintModalOpen && (
+        <SprintPlannerModal
+          isOpen={isSprintModalOpen}
+          onClose={() => setIsSprintModalOpen(false)}
+          workspaceId={workspaceId}
+        />
+      )}
+
+      {isGitHubModalOpen && (
+        <GitHubIntegrationModal
+          isOpen={isGitHubModalOpen}
+          onClose={() => setIsGitHubModalOpen(false)}
+          workspaceId={workspaceId}
+        />
+      )}
+
+      {isMemoryModalOpen && (
+        <WorkspaceMemoryModal
+          isOpen={isMemoryModalOpen}
+          onClose={() => setIsMemoryModalOpen(false)}
+          workspaceId={workspaceId}
+        />
+      )}
     </div>
   );
 }

@@ -8,142 +8,119 @@ import { getSocket } from "../../services/socket/connection";
 
 const routeLabels = {
   "": "Home",
-  "tasks": "Tasks",
-  "chat": "Chat",
+  "tasks": "My Tasks",
+  "chat": "Channels",
   "docs": "Documents",
   "settings": "Settings",
-  "members": "Members",
-  "sprints": "Sprints",
-  "calendar": "Calendar",
-  "activity": "Activity",
-  "analytics": "Analytics",
 };
 
+/* ══════════════════════════════════════════════════════
+   A-Collab Topbar — Stitch Workspace OS Design
+   ══════════════════════════════════════════════════════ */
 export default function Topbar() {
   const { toggleSidebar, setCommandPalette, setRightPanel, activeRightPanel } = useUIStore();
   const { user } = useAuthStore();
   const location = useLocation();
   const { workspaceId } = useParams();
+  const queryClient = useQueryClient();
 
-  // Derive current section name from path
   const pathSegments = location.pathname.split("/").filter(Boolean);
   const currentSection = pathSegments.length > 2 ? pathSegments[pathSegments.length - 1] : "";
   const sectionLabel = routeLabels[currentSection] ?? "Workspace";
 
-  const queryClient = useQueryClient();
+  const { data: workspace } = useQuery({
+    queryKey: ["workspace", workspaceId],
+    queryFn: () => api.get(`/workspaces/${workspaceId}`).then(res => res.data.workspace),
+    enabled: !!workspaceId,
+  });
+
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications"],
-    queryFn: () => api.get("/notifications").then((res) => res.data.notifications || []),
+    queryFn: () => api.get("/notifications").then(res => res.data.notifications || []),
   });
 
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
-
-    const handleNewNotification = () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    };
-
-    socket.on("notification:new", handleNewNotification);
-
-    return () => {
-      socket.off("notification:new", handleNewNotification);
-    };
+    const handle = () => queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    socket.on("notification:new", handle);
+    return () => socket.off("notification:new", handle);
   }, [queryClient]);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
+  const unreadCount = notifications.filter(n => !n.isRead).length;
   const isAIOpen = activeRightPanel === "AI_COPILOT";
 
   return (
-    <header className="h-12 border-b border-border bg-white px-5 flex items-center justify-between shrink-0 select-none">
-      {/* Left: Hamburger + Breadcrumb */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={toggleSidebar}
-          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer"
-          title="Toggle sidebar"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
-        </button>
-
-        {/* Breadcrumb */}
-        <div className="hidden sm:flex items-center gap-1.5 text-sm">
-          <span className="text-zinc-400 font-medium">A-Collab</span>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-3 h-3 text-zinc-300">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-          </svg>
-          <span className="text-zinc-700 font-semibold">{sectionLabel}</span>
+    <header className="h-14 w-full shrink-0 bg-surface-ws/90 backdrop-blur-md border-b border-border/60 shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-20 flex items-center justify-between px-space-lg">
+      {/* Left: breadcrumb */}
+      <div className="flex items-center gap-space-md">
+        <button onClick={toggleSidebar} className="lg:hidden p-1.5 -ml-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" title="Toggle sidebar"><span className="material-symbols-outlined" style={{ fontSize: 20 }}>menu</span></button>
+        <div className="flex items-center gap-space-xs text-on-surface-variant text-body-sm">
+          <span className="hover:text-on-surface cursor-pointer" onClick={() => window.history.back()}>Workspace</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
+          <span className="text-on-surface font-medium">{workspace?.name || "A-Collab Development"}</span>
+          {sectionLabel !== "Home" && (
+            <>
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
+              <span className="text-on-surface">{sectionLabel}</span>
+            </>
+          )}
+        </div>
+        {/* Status badge */}
+        <div className="hidden md:flex items-center gap-space-xs px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant text-label-sm">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#006c49' }} />
+          <span style={{ fontSize: 10, fontFamily: 'JetBrains Mono' }}>Operational</span>
         </div>
       </div>
 
-      {/* Center: Search trigger */}
-      <div className="flex-1 max-w-xs mx-4">
+      {/* Right: search + actions */}
+      <div className="flex items-center gap-space-md">
+        {/* Search trigger */}
         <button
           onClick={() => setCommandPalette(true)}
-          className="w-full flex items-center justify-between h-9 bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-lg px-3 text-sm text-zinc-400 transition-all cursor-pointer group"
+          className="flex items-center gap-space-sm h-8 px-space-sm bg-surface-container-lowest rounded-lg shadow-[0_1px_3px_rgba(17,24,39,0.05)] text-on-surface-variant cursor-pointer hover:bg-surface-container-low transition-colors"
         >
-          <div className="flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5 text-zinc-400">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
-            </svg>
-            <span className="text-sm">Search workspace...</span>
-          </div>
-          <kbd className="hidden sm:inline-block text-[11px] text-zinc-400 border border-zinc-200 bg-white px-1.5 py-0.5 rounded font-medium">⌘K</kbd>
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>search</span>
+          <span className="text-body-sm pr-6 hidden sm:inline">Search workspace...</span>
+          <kbd className="text-label-sm px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant" style={{ fontSize: 10, fontFamily: 'JetBrains Mono' }}>⌘K</kbd>
         </button>
-      </div>
 
-      {/* Right: Actions */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        {/* Synced status */}
-        <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-xs font-medium mr-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-          <span>Live</span>
+        <div className="flex items-center gap-space-xs">
+          {/* Notifications */}
+          <button
+            onClick={() => setRightPanel(activeRightPanel === "NOTIFICATIONS" ? null : "NOTIFICATIONS")}
+            className="relative p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#ba1a1a]" />
+            )}
+          </button>
+
+          {/* CollabAI */}
+          <button
+            onClick={() => setRightPanel(isAIOpen ? null : "AI_COPILOT")}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-on-surface transition-colors ${isAIOpen ? "bg-primary-container text-on-primary" : "bg-surface-container hover:bg-surface-container-high"}`}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16, color: isAIOpen ? 'inherit' : '#006c49' }}>auto_awesome</span>
+            <span className="text-body-sm font-medium">CollabAI</span>
+          </button>
         </div>
 
-        {/* AI Copilot toggle */}
-        <button
-          onClick={() => setRightPanel(isAIOpen ? null : "AI_COPILOT")}
-          className={`h-8 w-8 rounded-lg flex items-center justify-center border transition-all cursor-pointer ${
-            isAIOpen
-              ? "bg-violet-50 text-violet-600 border-violet-200 shadow-sm"
-              : "border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 hover:border-zinc-300"
-          }`}
-          title="CollabAI"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
-          </svg>
-        </button>
-
-        {/* Notifications */}
-        <button
-          className="h-8 w-8 rounded-lg flex items-center justify-center border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700 hover:border-zinc-300 transition-all cursor-pointer relative"
-          title={`${unreadCount} unread notifications`}
-          onClick={() => {
-            // Instantly mark all as read for E2E demo simplicity, or let them know
-            if (unreadCount > 0) {
-              api.post("/notifications/mark-read").then(() => {
-                queryClient.invalidateQueries({ queryKey: ["notifications"] });
-              }).catch(err => console.error(err));
-            }
-          }}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-          </svg>
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[9px] font-bold text-white flex items-center justify-center animate-pulse">
-              {unreadCount}
-            </span>
-          )}
-        </button>
+        <div className="h-4 w-px bg-outline-variant/30" />
 
         {/* User avatar */}
-        <div className="h-7 w-7 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-[11px] font-bold text-primary ml-1 cursor-pointer hover:border-primary/40 transition-colors">
-          {user?.username?.substring(0, 2).toUpperCase() || "ME"}
+        <div className="flex items-center gap-space-sm cursor-pointer">
+          <div className="relative">
+            {user?.avatarUrl ? (
+              <img alt="Profile" className="w-8 h-8 rounded-full object-cover" src={user.avatarUrl} />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center text-xs font-bold">
+                {(user?.firstName?.[0] || user?.username?.[0] || "U").toUpperCase()}
+              </div>
+            )}
+            <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full ring-2 ring-surface-ws" style={{ backgroundColor: '#006c49' }} />
+          </div>
         </div>
       </div>
     </header>

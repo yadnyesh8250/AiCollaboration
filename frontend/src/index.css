@@ -313,3 +313,270 @@
   .priority-medium { color: #0F9F78; }
   .priority-low { color: #98A2B3; }
 }
+/* ============================================================
+   STITCH WORKSPACE DESIGN SYSTEM
+   Kinetic Atelier — Material Design 3 Color Tokens + Typography
+   Used in: WorkspaceLayout, WorkspaceHome, WorkspaceChat,
+            WorkspaceTasks, WorkspaceDocs
+   ============================================================ */
+
+/* --- Color Utilities (non-conflicting additions) --- */
+@layer utilities {
+  /* Primary */
+  .bg-primary-stitch    { background-color: #00433b; }
+  .text-primary-stitch  { color: #00433b; }
+  .ring-primary-stitch  { --tw-ring-color: #00433b; }
+
+  .bg-primary-container    { background-color: #0d5c52; }
+  .text-primary-container  { color: #0d5c52; }
+  .hover\:bg-primary-container:hover { background-color: #0d5c52; }
+  .hover\:bg-primary-stitch:hover    { background-color: #00433b; }
+
+  .text-on-primary         { color: #ffffff; }
+  .bg-on-primary           { background-color: #ffffff; }
+
+  .text-on-primary-container  { color: #8ed2c5; }
+
+  .bg-primary-fixed        { background-color: #abf0e2; }
+  .bg-primary-fixed-dim    { background-color: #8fd3c6; }
+  .text-on-primary-fixed   { color: #00201c; }
+  .text-on-primary-fixed-variant { color: #005047; }
+  .text-inverse-primary    { color: #8fd3c6; }
+  .bg-inverse-primary      { background-color: #8fd3c6; }
+
+  /* Secondary */
+  .bg-secondary-stitch    { background-color: #006c49; }
+  .text-secondary-stitch  { color: #006c49; }
+  .hover\:bg-secondary-stitch:hover { background-color: #006c49; }
+
+  .bg-secondary-container    { background-color: #6cf8bb; }
+  .text-secondary-container  { color: #6cf8bb; }
+  .bg-secondary-container\/30 { background-color: rgba(108,248,187,0.3); }
+  .bg-secondary-container\/40 { background-color: rgba(108,248,187,0.4); }
+  .text-on-secondary          { color: #ffffff; }
+  .text-on-secondary-container { color: #00714d; }
+  .bg-on-secondary-container  { background-color: #00714d; }
+
+  .bg-secondary-fixed         { background-color: #6ffbbe; }
+  .text-secondary-fixed       { color: #6ffbbe; }
+  .bg-secondary-fixed-dim     { background-color: #4edea3; }
+  .hover\:bg-secondary-fixed-dim:hover { background-color: #4edea3; }
+  .text-on-secondary-fixed    { color: #002113; }
+  .bg-on-secondary-fixed      { background-color: #002113; }
+  .text-on-secondary-fixed-variant { color: #005236; }
+
+  /* Tertiary */
+  .bg-tertiary            { background-color: #00433e; }
+  .text-tertiary          { color: #00433e; }
+  .text-on-tertiary       { color: #ffffff; }
+  .bg-tertiary-container  { background-color: #005c55; }
+  .text-on-tertiary-container { color: #7ed4ca; }
+  .bg-tertiary-fixed      { background-color: #9cf2e8; }
+  .bg-tertiary-fixed-dim  { background-color: #80d5cb; }
+  .text-tertiary-fixed-dim { color: #80d5cb; }
+  .text-on-tertiary-fixed  { color: #00201d; }
+  .text-on-tertiary-fixed-variant { color: #00504a; }
+
+  /* Error */
+  .bg-error-stitch        { background-color: #ba1a1a; }
+  .text-error-stitch      { color: #ba1a1a; }
+  .bg-error-container     { background-color: #ffdad6; }
+  .text-on-error          { color: #ffffff; }
+  .text-on-error-container { color: #93000a; }
+  .bg-error-container\/20 { background-color: rgba(255,218,214,0.2); }
+  .bg-error-container\/40 { background-color: rgba(255,218,214,0.4); }
+
+  /* Surface layers */
+  .bg-surface-ws          { background-color: #f9f9ff; }
+  .bg-surface-dim         { background-color: #d3daef; }
+  .bg-surface-bright      { background-color: #f9f9ff; }
+  .bg-surface-variant     { background-color: #dce2f7; }
+  .bg-surface-tint        { background-color: #21695f; }
+
+  .bg-surface-container-lowest   { background-color: #ffffff; }
+  .bg-surface-container-low      { background-color: #f1f3ff; }
+  .bg-surface-container          { background-color: #e9edff; }
+  .bg-surface-container-high     { background-color: #e1e8fd; }
+  .bg-surface-container-highest  { background-color: #dce2f7; }
+
+  .hover\:bg-surface-container-low:hover     { background-color: #f1f3ff; }
+  .hover\:bg-surface-container:hover         { background-color: #e9edff; }
+  .hover\:bg-surface-container-high:hover    { background-color: #e1e8fd; }
+  .hover\:bg-surface-container-highest:hover { background-color: #dce2f7; }
+  .hover\:bg-surface-bright:hover            { background-color: #f9f9ff; }
+
+  /* On-surface text */
+  .text-on-surface         { color: #141b2b; }
+  .text-on-surface-variant { color: #3f4946; }
+
+  /* Structural borders */
+  .text-outline            { color: #6f7976; }
+  .bg-outline              { background-color: #6f7976; }
+  .text-outline-variant    { color: #bec9c5; }
+  .border-outline          { border-color: #6f7976; }
+  .border-outline-variant  { border-color: #bec9c5; }
+  .ring-outline-variant    { --tw-ring-color: #bec9c5; }
+
+  /* Inverse */
+  .bg-inverse-surface      { background-color: #293040; }
+  .text-inverse-on-surface { color: #edf0ff; }
+
+  /* Hover: on-surface text colors */
+  .hover\:text-on-surface:hover         { color: #141b2b; }
+  .hover\:text-primary-stitch:hover     { color: #00433b; }
+  .hover\:text-secondary-stitch:hover   { color: #006c49; }
+
+  /* Ring: primary */
+  .focus\:ring-primary-stitch:focus { outline: 2px solid #00433b; }
+  .focus\:ring-1:focus { --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 1px var(--tw-ring-color); }
+
+  /* Opacity modifiers for text */
+  .text-on-secondary-fixed\/10 { color: rgba(0,33,19,0.1); }
+  .bg-on-secondary-fixed\/10   { background-color: rgba(0,33,19,0.1); }
+
+  /* Accent checkbox */
+  .accent-primary-stitch   { accent-color: #00433b; }
+
+  /* Spacing shortcuts */
+  .px-space-xs  { padding-left: 0.25rem; padding-right: 0.25rem; }
+  .px-space-sm  { padding-left: 0.5rem;  padding-right: 0.5rem; }
+  .px-space-md  { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .px-space-lg  { padding-left: 1rem;    padding-right: 1rem; }
+  .px-space-xl  { padding-left: 1.5rem;  padding-right: 1.5rem; }
+  .py-space-xs  { padding-top: 0.25rem;  padding-bottom: 0.25rem; }
+  .py-space-sm  { padding-top: 0.5rem;   padding-bottom: 0.5rem; }
+  .py-space-md  { padding-top: 0.75rem;  padding-bottom: 0.75rem; }
+  .py-space-lg  { padding-top: 1rem;     padding-bottom: 1rem; }
+  .py-space-xl  { padding-top: 1.5rem;   padding-bottom: 1.5rem; }
+  .p-space-xs   { padding: 0.25rem; }
+  .p-space-sm   { padding: 0.5rem; }
+  .p-space-md   { padding: 0.75rem; }
+  .p-space-lg   { padding: 1rem; }
+  .p-space-xl   { padding: 1.5rem; }
+  .gap-space-xs { gap: 0.25rem; }
+  .gap-space-sm { gap: 0.5rem; }
+  .gap-space-md { gap: 0.75rem; }
+  .gap-space-lg { gap: 1rem; }
+  .gap-space-xl { gap: 1.5rem; }
+  .space-y-space-xs > * + * { margin-top: 0.25rem; }
+  .space-y-space-sm > * + * { margin-top: 0.5rem; }
+  .space-y-space-md > * + * { margin-top: 0.75rem; }
+  .space-y-space-lg > * + * { margin-top: 1rem; }
+  .space-y-space-xl > * + * { margin-top: 1.5rem; }
+  .pt-space-xs  { padding-top: 0.25rem; }
+  .pt-space-sm  { padding-top: 0.5rem; }
+  .pt-space-md  { padding-top: 0.75rem; }
+  .pt-space-lg  { padding-top: 1rem; }
+  .pt-space-xl  { padding-top: 1.5rem; }
+  .pb-space-sm  { padding-bottom: 0.5rem; }
+  .pb-space-lg  { padding-bottom: 1rem; }
+  .pb-space-xl  { padding-bottom: 1.5rem; }
+  .mt-space-md  { margin-top: 0.75rem; }
+  .mt-space-lg  { margin-top: 1rem; }
+  .mb-space-md  { margin-bottom: 0.75rem; }
+
+  /* Typography: Hanken Grotesk headlines */
+  .font-headline-xl { font-family: 'Hanken Grotesk', sans-serif; }
+  .font-headline-lg { font-family: 'Hanken Grotesk', sans-serif; }
+  .font-headline-md { font-family: 'Hanken Grotesk', sans-serif; }
+  .font-headline-sm { font-family: 'Hanken Grotesk', sans-serif; }
+
+  .text-headline-xl {
+    font-size: 36px;
+    line-height: 44px;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+    font-family: 'Hanken Grotesk', sans-serif;
+  }
+  .text-headline-lg {
+    font-size: 28px;
+    line-height: 36px;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    font-family: 'Hanken Grotesk', sans-serif;
+  }
+  .text-headline-md {
+    font-size: 20px;
+    line-height: 28px;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+    font-family: 'Hanken Grotesk', sans-serif;
+  }
+  .text-headline-sm {
+    font-size: 16px;
+    line-height: 24px;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+    font-family: 'Hanken Grotesk', sans-serif;
+  }
+
+  /* Typography: Inter body */
+  .font-body-lg { font-family: 'Inter', sans-serif; }
+  .font-body-md { font-family: 'Inter', sans-serif; }
+  .font-body-sm { font-family: 'Inter', sans-serif; }
+  .font-caption { font-family: 'Inter', sans-serif; }
+
+  .text-body-lg {
+    font-size: 16px;
+    line-height: 26px;
+    letter-spacing: -0.011em;
+    font-family: 'Inter', sans-serif;
+  }
+  .text-body-md {
+    font-size: 14px;
+    line-height: 21px;
+    letter-spacing: -0.006em;
+    font-family: 'Inter', sans-serif;
+  }
+  .text-body-sm {
+    font-size: 13px;
+    line-height: 19px;
+    letter-spacing: 0em;
+    font-family: 'Inter', sans-serif;
+  }
+  .text-caption {
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0em;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Typography: JetBrains Mono labels */
+  .font-label-md { font-family: 'JetBrains Mono', monospace; }
+  .font-label-sm { font-family: 'JetBrains Mono', monospace; }
+
+  .text-label-md {
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: -0.01em;
+    font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .text-label-sm {
+    font-size: 11px;
+    line-height: 14px;
+    letter-spacing: 0em;
+    font-weight: 400;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Material Symbols icon helper */
+  .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    display: inline-block;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+    user-select: none;
+  }
+
+  /* Stitch shadow tokens */
+  .shadow-xs { box-shadow: 0 1px 2px rgba(17,24,39,0.05); }
+}

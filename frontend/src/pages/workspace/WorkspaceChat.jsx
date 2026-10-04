@@ -5,6 +5,10 @@ import { api } from "../../services/api/client";
 import { getSocket } from "../../services/socket/connection";
 import { useAuthStore } from "../../stores/authStore";
 
+/* ══════════════════════════════════════════════════════
+   A-Collab Workspace Chat & Thread Panel
+   Stitch Workspace OS Design System
+   ══════════════════════════════════════════════════════ */
 export default function WorkspaceChat() {
   const { workspaceId, "*": channelSlug } = useParams();
   const { user } = useAuthStore();
@@ -14,6 +18,7 @@ export default function WorkspaceChat() {
   const [aiTyping, setAiTyping] = useState(false);
   const [detectedTask, setDetectedTask] = useState(null);
   const [isExtractingTask, setIsExtractingTask] = useState(false);
+  const [isStarred, setIsStarred] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -73,7 +78,6 @@ export default function WorkspaceChat() {
     socket.emit("joinChannel", channelId);
 
     const handleReceiveMessage = (newMessage) => {
-      // If it's a thread reply, update thread state if active
       if (newMessage.parentMessageId) {
         if (activeThreadMessage && activeThreadMessage.id === newMessage.parentMessageId) {
           setThreadReplies((prev) => {
@@ -81,7 +85,6 @@ export default function WorkspaceChat() {
             return [...prev, newMessage];
           });
         }
-        // Increment reply count in main timeline
         queryClient.setQueryData(["messages", channelId], (old = []) => {
           return old.map((m) =>
             m.id === newMessage.parentMessageId
@@ -161,7 +164,6 @@ export default function WorkspaceChat() {
       });
     };
 
-    // Socket reaction listeners
     const handleReactionAdded = (reaction) => {
       queryClient.setQueryData(["messages", channelId], (old = []) => {
         return old.map((m) => {
@@ -264,7 +266,7 @@ export default function WorkspaceChat() {
       return;
     }
 
-    const taskTriggers = ["@ ", "@alex", "@sarah", "please fix", "implement", "update", "due by", "by friday", "task:", "todo:"];
+    const taskTriggers = ["@ ", "please fix", "implement", "update", "due by", "by friday", "task:", "todo:"];
     const isTaskLike = taskTriggers.some((trig) => val.toLowerCase().includes(trig));
 
     if (isTaskLike && !detectedTask) {
@@ -294,8 +296,7 @@ export default function WorkspaceChat() {
         status: "TODO",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks", workspaceId] });
-      // Post confirmation message in channel
+      queryClient.invalidateQueries({ queryKey: ["workspaceTasks", workspaceId] });
       sendMessageMutation.mutate({
         content: `⚡ **Task Created**: "${detectedTask.title}"${detectedTask.assignee ? ` assigned to @${detectedTask.assignee.username}` : ""}`,
       });
@@ -304,28 +305,26 @@ export default function WorkspaceChat() {
   });
 
   const handleSend = (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!inputValue.trim() || !channelId) return;
-
     sendMessageMutation.mutate({ content: inputValue.trim() });
     setInputValue("");
   };
 
   const handleSendThreadReply = (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!threadInputValue.trim() || !activeThreadMessage) return;
 
     sendMessageMutation.mutate({
       content: threadInputValue.trim(),
       parentMessageId: activeThreadMessage.id
     });
-    // Optimistic append thread reply locally
     setThreadReplies((prev) => [
       ...prev,
       {
         id: Date.now().toString(),
         content: threadInputValue.trim(),
-        sender: { id: user.id, username: user.username },
+        sender: { id: user?.id, username: user?.username },
         createdAt: new Date().toISOString()
       }
     ]);
@@ -337,22 +336,18 @@ export default function WorkspaceChat() {
     if (!file || !channelId) return;
 
     try {
-      // 1. Create a text message first representing the file attachment
       const msgRes = await api.post(`/channels/${channelId}/messages`, {
         content: `Uploaded attachment: ${file.name}`
       });
 
       if (msgRes.data.success) {
         const messageId = msgRes.data.message.id;
-        
-        // 2. Upload actual file data to attachments endpoint
         const formData = new FormData();
         formData.append("file", file);
 
         await api.post(`/messages/${messageId}/attachments`, formData, {
           headers: { "Content-Type": "multipart/form-data" }
         });
-
         refetchMessages();
       }
     } catch (err) {
@@ -361,394 +356,400 @@ export default function WorkspaceChat() {
     }
   };
 
-  const getInitials = (name) => {
-    if (!name) return "?";
-    return name.substring(0, 2).toUpperCase();
+  const formatTime = (dateStr) => {
+    try {
+      return new Date(dateStr).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    } catch {
+      return "";
+    }
   };
 
-  // Deterministic background color per user
-  const getAvatarBg = (username) => {
-    if (!username) return "bg-zinc-200 text-zinc-600";
-    const palettes = [
-      "bg-teal-500",
-      "bg-violet-500",
-      "bg-blue-500",
-      "bg-amber-500",
-      "bg-rose-500",
-      "bg-emerald-500",
-      "bg-indigo-500",
-      "bg-pink-500",
-    ];
-    let hash = 0;
-    for (let i = 0; i < username.length; i++) {
-      hash = username.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return palettes[Math.abs(hash) % palettes.length];
-  };
-
-  // Reusable avatar component — shows photo if available, else colored initials
-  const UserAvatar = ({ user: u, size = "md" }) => {
-    const sizeClass = size === "lg" ? "h-9 w-9 text-sm" : size === "sm" ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs";
-    const username = u?.username || "?";
-    const avatarUrl = u?.avatarUrl;
-    if (avatarUrl) {
-      return (
-        <img
-          src={avatarUrl}
-          alt={username}
-          className={`${sizeClass} rounded-full object-cover shrink-0 ring-2 ring-white`}
-          onError={(e) => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }}
-        />
-      );
-    }
-    return (
-      <div className={`${sizeClass} rounded-full ${getAvatarBg(username)} text-white font-semibold flex items-center justify-center shrink-0 ring-2 ring-white select-none`}>
-        {getInitials(username)}
-      </div>
-    );
-  };
-
-  const getCardIcon = (cardType) => {
-    switch (cardType) {
-      case "code-review": return "💻";
-      case "meeting": return "📅";
-      case "sprint": return "🚀";
-      default: return "🔍";
-    }
+  const isCodeSnippet = (text) => {
+    return text.includes("```") || text.includes("curl ") || text.includes("SELECT ") || text.includes("docker ");
   };
 
   return (
-    <div className="flex h-full bg-background text-foreground overflow-hidden selection:bg-primary/20 selection:text-white">
+    <div className="flex flex-col h-full bg-surface overflow-hidden select-none">
       
-      {/* Main Conversation Stream */}
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
-        {/* Channel Title Header */}
-        <div className="h-12 border-b border-border px-6 flex items-center justify-between shrink-0 bg-card/65 backdrop-blur-md z-10">
-          <div>
-            <h2 className="text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 select-none">
-              <span className="text-zinc-400 font-medium">#</span>
-              {activeChannel?.name || "chat"}
-            </h2>
-            <p className="text-[9px] text-zinc-500 font-medium mt-0.5 select-none">
-              {activeChannel?.description || "Channel conversation feed"}
-            </p>
+      {/* ══ Top Secondary Utility / Channel Bar ══ */}
+      <header className="flex-none bg-surface-container-lowest px-space-md py-2.5 flex items-center justify-between shadow-xs border-b border-surface-container z-20">
+        <div className="flex items-center gap-space-md min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="material-symbols-outlined text-on-surface-variant text-lg">
+              {activeChannel?.type === "PRIVATE" ? "lock" : "tag"}
+            </span>
+            <h1 className="font-headline-sm text-headline-sm text-on-surface font-semibold truncate tracking-tight">
+              {activeChannel?.name || "development"}
+            </h1>
+            <button
+              onClick={() => setIsStarred(!isStarred)}
+              className={`p-1 rounded-lg transition-colors ${
+                isStarred ? "text-amber-500 bg-amber-50" : "text-outline hover:text-on-surface hover:bg-surface-container-low"
+              }`}
+              title="Star channel"
+            >
+              <span className="material-symbols-outlined text-base">star</span>
+            </button>
+          </div>
+
+          <div className="h-4 w-px bg-surface-container-high hidden sm:block" />
+
+          <div className="hidden lg:flex items-center gap-space-sm text-on-surface-variant min-w-0">
+            <span className="font-body-sm text-body-sm truncate max-w-md text-on-surface-variant">
+              {activeChannel?.description || "Engineering discussions, architecture RFCs, CI/CD and deployment alerts"}
+            </span>
+          </div>
+
+          <div className="hidden xl:flex items-center gap-3 text-outline">
+            <span className="font-label-sm text-label-sm flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">group</span>
+              {activeChannel?._count?.members || "Active"}
+            </span>
           </div>
         </div>
 
-        {/* Message Timeline */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 min-h-0 no-scrollbar">
-          {loadingChannels || (channelId && loadingMessages) ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-20 animate-in fade-in duration-200">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider animate-pulse">Loading feed...</span>
-            </div>
-          ) : !channelId ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-20 animate-in fade-in duration-200 select-none">
-              <div className="h-10 w-10 rounded-2xl bg-card border border-border flex items-center justify-center text-zinc-400">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
+        {/* Actions Right */}
+        <div className="flex items-center gap-space-xs flex-none">
+          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm border border-outline-variant/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
+            <span className="text-on-surface font-medium">GitHub: Active</span>
+          </div>
+
+          <button
+            onClick={() => {
+              if (inputValue.includes("@ai")) {
+                setInputValue(prev => prev.replace("@ai ", ""));
+              } else {
+                setInputValue(prev => `@ai ${prev}`);
+              }
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-secondary-fixed text-on-secondary-fixed hover:bg-secondary-fixed-dim transition-colors font-body-sm text-body-sm font-medium shadow-xs"
+          >
+            <span className="material-symbols-outlined text-base text-secondary">auto_awesome</span>
+            <span className="hidden sm:inline">Ask AI</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ══ Workspace Central Body (Channel Feed + Thread Drawer) ══ */}
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
+        
+        {/* ── Primary Chat Feed Area ── */}
+        <div className="flex-1 flex flex-col min-w-0 bg-surface">
+          
+          {/* Timeline Scroll Container */}
+          <div className="flex-1 overflow-y-auto px-space-md lg:px-space-xl py-space-lg space-y-space-md">
+            
+            {/* Channel Topic Banner / Notice Card */}
+            <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-xs border border-outline-variant/20 flex items-start gap-space-md">
+              <div className="p-2 rounded-lg bg-primary-container text-on-primary shadow-xs">
+                <span className="material-symbols-outlined text-xl">terminal</span>
               </div>
-              <div>
-                <h4 className="text-xs font-bold text-zinc-700">No Channels Configured</h4>
-                <p className="text-[10px] text-zinc-500 mt-1 max-w-[240px]">
-                  Create a channel in this workspace to launch communication.
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-headline-sm text-headline-sm text-on-surface">
+                    Welcome to #{activeChannel?.name || "development"}
+                  </span>
+                  <span className="font-label-sm text-label-sm px-2 py-0.5 rounded bg-surface-container-high text-outline uppercase font-medium">
+                    Core Workspace
+                  </span>
+                </div>
+                <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                  {activeChannel?.description || "This channel is connected to GitHub repository acollab-core/api-services. Commits, PR notifications, and deploy health reports pipe here automatically."}
                 </p>
               </div>
             </div>
-          ) : !Array.isArray(messages) || messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-20 animate-in fade-in duration-200 select-none">
-              <div className="h-10 w-10 rounded-xl bg-card border border-border flex items-center justify-center text-zinc-400">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
-                </svg>
+
+            {/* Date Separator */}
+            <div className="relative flex items-center justify-center my-space-md">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full bg-surface-container-high h-px" />
               </div>
-              <div>
-                <h4 className="text-xs font-bold text-zinc-700">Welcome to #{activeChannel?.name || "channel"}!</h4>
-                <p className="text-[10px] text-zinc-500 mt-1 max-w-[260px]">
-                  This is the beginning of the #{activeChannel?.name || "channel"} channel stream. Send a message to start.
+              <span className="relative bg-surface-container-lowest px-3 py-0.5 rounded-full font-label-sm text-label-sm font-medium text-outline shadow-xs border border-surface-container">
+                Today, {new Date().toLocaleDateString([], { month: "long", day: "numeric" })}
+              </span>
+            </div>
+
+            {/* Messages Stream */}
+            {loadingMessages ? (
+              <div className="py-12 flex flex-col items-center justify-center text-center gap-2">
+                <span className="material-symbols-outlined text-primary text-2xl animate-spin">progress_activity</span>
+                <span className="font-label-sm text-label-sm text-outline">Loading channel feed...</span>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="py-16 text-center">
+                <span className="material-symbols-outlined text-outline text-4xl mb-2">forum</span>
+                <h3 className="font-headline-sm text-headline-sm text-on-surface">No messages yet</h3>
+                <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                  Send the first message to kick off conversation in #{activeChannel?.name || "development"}!
                 </p>
               </div>
-            </div>
-          ) : (
-            messages.map((msg) => {
-              const payload = msg.payload ? (typeof msg.payload === "string" ? JSON.parse(msg.payload) : msg.payload) : {};
-              const isAI = msg.messageType === "AI";
-              const isEditing = editingMessageId === msg.id;
+            ) : (
+              messages.map((msg) => {
+                const isOwn = user?.id === msg.senderId;
+                const isAI = msg.messageType === "AI" || msg.senderId === "ai";
+                const isEditing = editingMessageId === msg.id;
 
-              // Check if self-message for reactions/edits
-              const isOwnMessage = user?.id === msg.senderId;
+                const reactionGroups = (msg.reactions || []).reduce((acc, curr) => {
+                  acc[curr.emoji] = acc[curr.emoji] || [];
+                  acc[curr.emoji].push(curr);
+                  return acc;
+                }, {});
 
-              // Aggregate reactions counts
-              const reactionGroups = (msg.reactions || []).reduce((acc, curr) => {
-                acc[curr.emoji] = acc[curr.emoji] || [];
-                acc[curr.emoji].push(curr);
-                return acc;
-              }, {});
+                return (
+                  <article
+                    key={msg.id}
+                    className="group relative flex items-start gap-space-md p-space-sm rounded-xl hover:bg-surface-container-lowest transition-colors"
+                  >
+                    {/* Hover Actions Menu */}
+                    <div className="absolute right-4 -top-3 hidden group-hover:flex items-center bg-surface-container-lowest shadow-md rounded-lg p-0.5 z-10 border border-surface-container">
+                      {["👍", "🚀", "❤️", "👀"].map((emoji) => {
+                        const hasReacted = (msg.reactions || []).some(
+                          (r) => r.userId === user?.id && r.emoji === emoji
+                        );
+                        return (
+                          <button
+                            key={emoji}
+                            onClick={() => toggleReactionMutation.mutate({ messageId: msg.id, emoji, hasReacted })}
+                            className={`p-1 hover:bg-surface-container-high rounded text-xs transition-colors ${
+                              hasReacted ? "bg-secondary-container/40" : ""
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        );
+                      })}
 
-              return (
-                <div key={msg.id} className="group relative animate-in fade-in duration-150 p-2.5 rounded-xl border border-transparent hover:bg-card/45 hover:border-border hover:shadow-xs">
-                  
-                  {/* Hover Actions Menu (Slack style) */}
-                  <div className="absolute right-3.5 -top-3.5 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center gap-1 bg-card border border-border rounded-lg shadow-sm p-1">
-                    {/* Quick Reactions */}
-                    {["👍", "❤️", "🔥", "👀"].map((emoji) => {
-                      const hasReacted = (msg.reactions || []).some(
-                        (r) => r.userId === user?.id && r.emoji === emoji
-                      );
-                      return (
+                      <div className="h-3 w-px bg-surface-container-high mx-1" />
+
+                      <button
+                        onClick={() => setActiveThreadMessage(msg)}
+                        className="p-1 hover:bg-surface-container-high rounded text-on-surface-variant"
+                        title="Reply in thread"
+                      >
+                        <span className="material-symbols-outlined text-base">forum</span>
+                      </button>
+
+                      {isOwn && (
                         <button
-                          key={emoji}
-                          onClick={() => toggleReactionMutation.mutate({ messageId: msg.id, emoji, hasReacted })}
-                          className={`hover:bg-zinc-100 px-1.5 py-0.5 rounded text-xs cursor-pointer ${
-                            hasReacted ? "bg-primary/10 text-primary" : ""
-                          }`}
+                          onClick={() => {
+                            setEditingMessageId(msg.id);
+                            setEditInputValue(msg.content);
+                          }}
+                          className="p-1 hover:bg-surface-container-high rounded text-on-surface-variant"
+                          title="Edit"
                         >
-                          {emoji}
+                          <span className="material-symbols-outlined text-base">edit</span>
                         </button>
-                      );
-                    })}
-                    <div className="h-3.5 w-[1px] bg-border mx-1" />
-                    
-                    {/* Thread Reply */}
-                    <button
-                      onClick={() => setActiveThreadMessage(msg)}
-                      className="p-1 text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 rounded cursor-pointer"
-                      title="Reply in Thread"
-                    >
-                      💬
-                    </button>
+                      )}
 
-                    {/* Edit Message (Self Only) */}
-                    {isOwnMessage && (
-                      <button
-                        onClick={() => {
-                          setEditingMessageId(msg.id);
-                          setEditInputValue(msg.content);
-                        }}
-                        className="p-1 text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 rounded cursor-pointer"
-                        title="Edit message"
-                      >
-                        ✏️
-                      </button>
+                      {isOwn && (
+                        <button
+                          onClick={() => {
+                            if (confirm("Delete this message?")) {
+                              deleteMessageMutation.mutate(msg.id);
+                            }
+                          }}
+                          className="p-1 hover:bg-error-container/40 rounded text-error-stitch"
+                          title="Delete"
+                        >
+                          <span className="material-symbols-outlined text-base">delete</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Sender Avatar */}
+                    {isAI ? (
+                      <div className="w-9 h-9 rounded-xl bg-primary-container text-on-primary flex items-center justify-center flex-none shadow-xs">
+                        <span className="material-symbols-outlined text-base text-secondary">auto_awesome</span>
+                      </div>
+                    ) : msg.sender?.avatarUrl ? (
+                      <img
+                        className="w-9 h-9 rounded-full object-cover flex-none ring-1 ring-surface-container-high"
+                        src={msg.sender.avatarUrl}
+                        alt={msg.sender.username}
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-primary-container text-on-primary font-bold text-xs flex items-center justify-center flex-none">
+                        {(msg.sender?.firstName || msg.sender?.username || "U").charAt(0).toUpperCase()}
+                      </div>
                     )}
 
-                    {/* Delete Message (Self Only) */}
-                    {isOwnMessage && (
-                      <button
-                        onClick={() => {
-                          if (confirm("Delete this message?")) {
-                            deleteMessageMutation.mutate(msg.id);
-                          }
-                        }}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded cursor-pointer"
-                        title="Delete message"
-                      >
-                        🗑️
-                      </button>
-                    )}
-                  </div>
+                    {/* Message Body */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-baseline gap-space-xs">
+                        <span className="font-body-sm text-body-sm font-semibold text-on-surface">
+                          {isAI ? "CollabAI" : (msg.sender?.firstName ? `${msg.sender.firstName} ${msg.sender.lastName || ""}` : msg.sender?.username || "User")}
+                        </span>
+                        {isOwn && <span className="font-label-sm text-label-sm text-outline">(You)</span>}
+                        {isAI && (
+                          <span className="font-label-sm text-label-sm px-1.5 py-0.2 rounded bg-secondary-container/40 text-on-secondary-container font-semibold">
+                            AI
+                          </span>
+                        )}
+                        <span className="font-label-sm text-label-sm text-outline ml-1">
+                          {formatTime(msg.createdAt)}
+                        </span>
+                      </div>
 
-                  {isAI ? (
-                    /* AI Card Template Block */
-                    <div className="flex items-start gap-3 pl-10">
-                      <div className="flex-1 bg-card border border-border border-l-2 border-l-purple-500 rounded-xl p-4 space-y-3 relative overflow-hidden shadow-xs">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs shrink-0">{getCardIcon(payload.cardType)}</span>
-                            <span className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest">{payload.title || "AI Response"}</span>
+                      {/* Content or Edit input */}
+                      {isEditing ? (
+                        <div className="space-y-2 pt-1">
+                          <input
+                            type="text"
+                            value={editInputValue}
+                            onChange={(e) => setEditInputValue(e.target.value)}
+                            className="w-full h-9 px-3 rounded-lg border border-primary bg-surface text-on-surface text-body-sm outline-none"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => editMessageMutation.mutate({ id: msg.id, content: editInputValue })}
+                              className="px-2.5 py-1 bg-primary text-on-primary rounded text-label-sm font-medium"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingMessageId(null)}
+                              className="px-2.5 py-1 bg-surface-container rounded text-on-surface text-label-sm font-medium"
+                            >
+                              Cancel
+                            </button>
                           </div>
-                          {payload.status && (
-                            <span className={`text-[8px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${payload.statusColor || "bg-purple-100 text-purple-600 border-purple-200"}`}>
-                              {payload.status}
-                            </span>
-                          )}
                         </div>
-
-                        <div className="text-[11px] text-zinc-700 leading-relaxed font-semibold">
+                      ) : (
+                        <div className="font-body-md text-body-md text-on-surface leading-relaxed break-words whitespace-pre-wrap">
                           {msg.content}
                         </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* User Message Layout — Slack style */
-                    <div className="flex items-start gap-3">
-                      {/* Profile picture / avatar */}
-                      <UserAvatar user={msg.sender} size="md" />
+                      )}
 
-                      <div className="flex-1 overflow-hidden space-y-1 min-w-0">
-                        <div className="flex items-baseline gap-2 select-none">
-                          <span className="text-sm font-semibold text-zinc-900">{msg.sender?.username || "System"}</span>
-                          <span className="text-xs text-zinc-400">
-                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </span>
+                      {/* Attachments */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {msg.attachments.map((file) => (
+                            <a
+                              key={file.id}
+                              href={file.fileUrl || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2 p-2 rounded-lg border border-outline-variant/30 bg-surface-container-low hover:bg-surface-container transition-colors max-w-xs"
+                            >
+                              <span className="material-symbols-outlined text-sm text-primary">attach_file</span>
+                              <span className="font-body-sm text-body-sm text-on-surface font-medium truncate">{file.fileName}</span>
+                            </a>
+                          ))}
                         </div>
+                      )}
 
-                        {/* Message content or inline editor */}
-                        {isEditing ? (
-                          <div className="space-y-1.5 pt-0.5">
-                            <input
-                              type="text"
-                              value={editInputValue}
-                              onChange={(e) => setEditInputValue(e.target.value)}
-                              className="w-full h-8.5 rounded-lg border border-zinc-300 bg-card px-3 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-                            />
-                            <div className="flex gap-1.5">
+                      {/* Reactions Chips */}
+                      {msg.reactions && msg.reactions.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          {Object.entries(reactionGroups).map(([emoji, reacts]) => {
+                            const hasReacted = reacts.some((r) => r.userId === user?.id);
+                            return (
                               <button
-                                onClick={() => editMessageMutation.mutate({ id: msg.id, content: editInputValue })}
-                                className="h-6 px-3 bg-primary text-[10px] text-white font-bold rounded hover:bg-primary/95 cursor-pointer"
+                                key={emoji}
+                                onClick={() => toggleReactionMutation.mutate({ messageId: msg.id, emoji, hasReacted })}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                                  hasReacted
+                                    ? "bg-secondary-container text-on-secondary-container ring-1 ring-secondary"
+                                    : "bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant"
+                                }`}
                               >
-                                Save
+                                <span>{emoji}</span>
+                                <span className="font-label-sm text-label-sm font-semibold">{reacts.length}</span>
                               </button>
-                              <button
-                                onClick={() => setEditingMessageId(null)}
-                                className="h-6 px-3 bg-zinc-100 text-[10px] text-zinc-600 font-bold rounded hover:bg-zinc-200 cursor-pointer"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-zinc-650 leading-relaxed break-words whitespace-pre-wrap">
-                            {msg.content}
-                          </p>
-                        )}
+                            );
+                          })}
+                        </div>
+                      )}
 
-                        {/* Attachments rendering */}
-                        {msg.attachments && msg.attachments.length > 0 && (
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {msg.attachments.map((file) => (
-                              <a
-                                key={file.id}
-                                href={file.fileUrl || "#"}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-2 p-2 rounded-lg border border-border bg-zinc-50 hover:bg-zinc-100 transition-colors shrink-0 max-w-[220px]"
-                              >
-                                <span className="text-xs">📎</span>
-                                <span className="text-[10px] font-bold text-zinc-600 truncate">{file.fileName || "Download Attachment"}</span>
-                              </a>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Reactions Grid */}
-                        {msg.reactions && msg.reactions.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {Object.entries(reactionGroups).map(([emoji, reacts]) => {
-                              const hasReacted = reacts.some((r) => r.userId === user?.id);
-                              return (
-                                <button
-                                  key={emoji}
-                                  onClick={() => toggleReactionMutation.mutate({ messageId: msg.id, emoji, hasReacted })}
-                                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold transition-all cursor-pointer ${
-                                    hasReacted 
-                                      ? "bg-primary/10 border-primary/45 text-primary" 
-                                      : "bg-zinc-50 border-border text-zinc-500 hover:bg-zinc-100"
-                                  }`}
-                                  title={reacts.map((r) => r.user?.username).join(", ")}
-                                >
-                                  <span>{emoji}</span>
-                                  <span>{reacts.length}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Threads Reply Badge indicator */}
-                        {msg._count?.replies > 0 && (
+                      {/* Thread Replies Button */}
+                      {(msg._count?.replies > 0 || (activeThreadMessage && activeThreadMessage.id === msg.id)) && (
+                        <div className="pt-1">
                           <button
                             onClick={() => setActiveThreadMessage(msg)}
-                            className="flex items-center gap-1.5 text-[9px] font-bold text-primary hover:underline pt-1 cursor-pointer select-none"
+                            className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container-high text-primary font-body-sm text-body-sm font-medium transition-colors"
                           >
-                            <span>💬 View Thread ({msg._count.replies} replies)</span>
+                            <span className="material-symbols-outlined text-base text-secondary">forum</span>
+                            <span>{msg._count?.replies || threadReplies.length} replies</span>
+                            <span className="material-symbols-outlined text-sm">chevron_right</span>
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              );
-            })
-          )}
+                  </article>
+                );
+              })
+            )}
 
-          {aiTyping && (
-            <div className="flex items-start gap-3 px-3 py-2.5 rounded-xl">
-              {/* AI avatar */}
-              <div className="h-8 w-8 rounded-full bg-violet-100 border-2 border-white ring-2 ring-violet-200 flex items-center justify-center shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-4 h-4 text-violet-600">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.979M19 12l-8.982 8.979M15 12h-4.5m4.5-9H9v9" />
-                </svg>
+            {/* AI Typing Indicator */}
+            {aiTyping && (
+              <div className="px-space-md py-1 flex items-center gap-2 text-outline font-label-sm text-label-sm min-h-6">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse [animation-delay:200ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse [animation-delay:400ms]" />
+                </span>
+                <span><strong className="text-on-surface font-medium">CollabAI</strong> is formulating reply...</span>
               </div>
-              <div className="space-y-1 select-none">
-                <span className="text-sm font-semibold text-zinc-900 block">CollabAI</span>
-                <div className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
-            </div>
-          )}
+            )}
 
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Floating Smart Task Extraction Banner */}
-        {detectedTask && (
-          <div className="mx-6 mb-2 bg-gradient-to-r from-teal-500/10 via-teal-50 to-white border border-teal-300 rounded-xl p-3 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150 shadow-sm">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-sm">✦</span>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-teal-900 truncate">
-                  Task detected: <span className="font-semibold text-zinc-900">"{detectedTask.title}"</span>
-                </p>
-                <p className="text-[11px] text-teal-700 font-medium">
-                  {detectedTask.assignee ? `Assigned → @${detectedTask.assignee.username}` : "Unassigned"}
-                  {detectedTask.dueDateStr && ` · Due → ${detectedTask.dueDateStr}`}
-                  <span className="ml-1 text-zinc-400">({detectedTask.priority})</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => createDetectedTaskMutation.mutate()}
-                disabled={createDetectedTaskMutation.isPending}
-                className="h-7 px-3 bg-primary hover:bg-[#087F66] text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition-colors"
-              >
-                {createDetectedTaskMutation.isPending ? "Creating..." : "Create Task ✨"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDetectedTask(null)}
-                className="text-xs text-zinc-400 hover:text-zinc-700 p-1"
-              >
-                ✕
-              </button>
-            </div>
+            <div ref={messagesEndRef} />
           </div>
-        )}
 
-        {/* Message Composer — Slack style */}
-        <form onSubmit={handleSend} className="px-6 pb-5 pt-3 border-t border-border bg-white shrink-0">
-          <div className="flex items-center gap-3">
-            {/* Current user avatar */}
-            <UserAvatar user={user} size="md" />
+          {/* Floating Smart Task Extraction Banner */}
+          {detectedTask && (
+            <div className="mx-space-md mb-2 bg-gradient-to-r from-secondary-container/30 to-surface-container-lowest border border-secondary/30 rounded-xl p-3 flex items-center justify-between gap-3 shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="material-symbols-outlined text-secondary">auto_awesome</span>
+                <div className="min-w-0">
+                  <p className="font-body-sm text-body-sm text-on-surface font-medium truncate">
+                    Task detected: <span className="font-semibold text-primary">"{detectedTask.title}"</span>
+                  </p>
+                  <p className="font-label-sm text-label-sm text-on-surface-variant">
+                    {detectedTask.assignee ? `Assigned → @${detectedTask.assignee.username}` : "Unassigned"}
+                    {detectedTask.dueDateStr && ` · Due ${detectedTask.dueDateStr}`}
+                  </p>
+                </div>
+              </div>
 
-            {/* Input box */}
-            <div className="flex-1 relative rounded-xl border border-border bg-zinc-50 hover:border-zinc-300 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 focus-within:bg-white transition-all">
-              <input
-                type="text"
-                placeholder={`Message #${activeChannel?.name || "chat"}  ·  Use @ai for CollabAI`}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => createDetectedTaskMutation.mutate()}
+                  disabled={createDetectedTaskMutation.isPending}
+                  className="h-7 px-3 bg-primary hover:bg-primary-container text-on-primary text-label-md font-label-md rounded font-medium transition-colors"
+                >
+                  {createDetectedTaskMutation.isPending ? "Creating..." : "Create Task ✨"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetectedTask(null)}
+                  className="p-1 text-outline hover:text-on-surface"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Rich Message Composer Container */}
+          <div className="p-space-md bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)] border-t border-surface-container z-10">
+            <div className="rounded-xl bg-surface-container-low p-2 focus-within:bg-surface-container-lowest focus-within:shadow-xs transition-all border border-outline-variant/30">
+              <textarea
+                className="w-full bg-transparent resize-none border-0 text-on-surface placeholder:text-outline font-body-md text-body-md focus:outline-none px-2"
+                placeholder={`Message #${activeChannel?.name || "development"}...`}
+                rows={2}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                className="w-full h-11 bg-transparent pl-4 pr-20 text-sm text-zinc-900 outline-none border-none placeholder:text-zinc-400"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend(e);
+                  }
+                }}
               />
 
-              {/* Hidden upload file input */}
               <input
                 type="file"
                 ref={fileInputRef}
@@ -756,101 +757,138 @@ export default function WorkspaceChat() {
                 className="hidden"
               />
 
-              {/* Action buttons */}
-              <div className="absolute inset-y-0 right-2 flex items-center gap-1">
+              {/* Rich Formatting & Action Bar */}
+              <div className="flex items-center justify-between pt-2 px-1 border-t border-surface-container/60">
+                <div className="flex items-center gap-0.5 text-on-surface-variant overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setInputValue(prev => prev + "**bold**")}
+                    className="p-1 rounded hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                    title="Bold"
+                  >
+                    <span className="material-symbols-outlined text-base">format_bold</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputValue(prev => prev + "_italic_")}
+                    className="p-1 rounded hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                    title="Italic"
+                  >
+                    <span className="material-symbols-outlined text-base">format_italic</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputValue(prev => prev + "\n```\ncode\n```\n")}
+                    className="p-1 rounded hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                    title="Code"
+                  >
+                    <span className="material-symbols-outlined text-base">code</span>
+                  </button>
+                  <div className="h-4 w-px bg-surface-container-high mx-1" />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-1 rounded hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                    title="Attach file"
+                  >
+                    <span className="material-symbols-outlined text-base">attach_file</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (inputValue.includes("@ai")) {
+                        setInputValue(prev => prev.replace("@ai ", ""));
+                      } else {
+                        setInputValue(prev => `@ai ${prev}`);
+                      }
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-surface-container-high text-primary hover:bg-secondary-container transition-colors flex items-center gap-1 font-label-sm text-label-sm font-semibold ml-1"
+                    title="CollabAI Prompt"
+                  >
+                    <span className="material-symbols-outlined text-sm text-secondary">auto_awesome</span> CollabAI
+                  </button>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
-                  title="Attach file"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-                  </svg>
-                </button>
-                <button
-                  type="submit"
+                  onClick={handleSend}
                   disabled={!inputValue.trim()}
-                  className="p-1.5 text-zinc-400 hover:text-primary rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer disabled:opacity-40"
-                  title="Send"
+                  className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-on-primary hover:bg-primary-container disabled:opacity-40 transition-colors shadow-xs"
+                  title="Send message"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                  </svg>
+                  <span className="material-symbols-outlined text-base">send</span>
                 </button>
               </div>
             </div>
           </div>
-        </form>
-      </div>
+        </div>
 
-      {/* Right Threads Sidebar Panel — Slack style */}
-      {activeThreadMessage && (
-        <aside className="w-[360px] border-l border-border bg-white flex flex-col h-full shrink-0 z-20 animate-in slide-in-from-right duration-200">
-          {/* Thread Header */}
-          <div className="h-12 border-b border-border px-5 flex items-center justify-between shrink-0">
-            <div>
-              <h3 className="text-sm font-semibold text-zinc-900">Thread</h3>
-              <p className="text-xs text-zinc-400">#{activeChannel?.name || "chat"}</p>
-            </div>
-            <button
-              onClick={() => setActiveThreadMessage(null)}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Thread Message Stream */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-5 no-scrollbar bg-zinc-50/40">
-            {/* Parent Message Card */}
-            <div className="bg-white border border-border rounded-xl p-4 space-y-3 shadow-sm">
-              <div className="flex items-start gap-3">
-                <UserAvatar user={activeThreadMessage.sender} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-sm font-semibold text-zinc-900">{activeThreadMessage.sender?.username || "System"}</p>
-                    <span className="text-xs text-zinc-400">Original</span>
-                  </div>
-                  <p className="text-sm text-zinc-600 leading-relaxed whitespace-pre-wrap mt-1">
-                    {activeThreadMessage.content}
-                  </p>
-                </div>
+        {/* ── Right-Side Contextual Thread Drawer ── */}
+        {activeThreadMessage && (
+          <aside className="w-80 md:w-96 flex flex-col flex-none bg-surface-container-lowest shadow-[0_0_24px_rgba(0,0,0,0.06)] border-l border-surface-container z-20">
+            {/* Thread Header */}
+            <div className="h-12 px-space-md flex items-center justify-between bg-surface-container-low flex-none border-b border-surface-container">
+              <div className="flex items-center gap-2">
+                <span className="font-headline-sm text-headline-sm text-on-surface font-semibold">Thread</span>
+                <span className="font-label-sm text-label-sm text-outline">#{activeChannel?.name || "development"}</span>
               </div>
+              <button
+                onClick={() => setActiveThreadMessage(null)}
+                className="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs font-medium text-zinc-400">{threadReplies.length} {threadReplies.length === 1 ? "reply" : "replies"}</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-
-            {/* Replies List */}
-            <div className="space-y-4">
-              {loadingThread ? (
-                <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  <span className="text-xs text-zinc-400">Loading replies...</span>
+            {/* Thread Message Log */}
+            <div className="flex-1 overflow-y-auto p-space-md space-y-space-md bg-surface">
+              {/* Root Message Anchor */}
+              <div className="p-space-sm rounded-xl bg-surface-container-lowest border border-outline-variant/30 space-y-1.5 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-primary-container text-on-primary font-bold text-xs flex items-center justify-center">
+                    {(activeThreadMessage.sender?.username || "U").charAt(0).toUpperCase()}
+                  </div>
+                  <span className="font-body-sm text-body-sm font-semibold text-on-surface">
+                    {activeThreadMessage.sender?.username || "User"}
+                  </span>
+                  <span className="font-label-sm text-label-sm text-outline">
+                    {formatTime(activeThreadMessage.createdAt)}
+                  </span>
                 </div>
+                <p className="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                  {activeThreadMessage.content}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-center">
+                <span className="font-label-sm text-label-sm text-outline uppercase font-semibold tracking-wider">
+                  Replies ({threadReplies.length})
+                </span>
+              </div>
+
+              {/* Thread Replies */}
+              {loadingThread ? (
+                <div className="py-6 text-center text-outline font-label-sm text-label-sm">Loading replies...</div>
               ) : threadReplies.length === 0 ? (
-                <div className="py-10 text-center">
-                  <p className="text-sm text-zinc-400">No replies yet.</p>
-                  <p className="text-xs text-zinc-300 mt-1">Be the first to reply.</p>
+                <div className="py-6 text-center text-on-surface-variant font-body-sm text-body-sm">
+                  No replies yet. Be the first to reply!
                 </div>
               ) : (
                 threadReplies.map((reply) => (
-                  <div key={reply.id} className="flex items-start gap-3">
-                    <UserAvatar user={reply.sender} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm font-semibold text-zinc-900">{reply.sender?.username || "System"}</span>
-                        <span className="text-xs text-zinc-400">
-                          {new Date(reply.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  <div key={reply.id} className="flex items-start gap-space-sm">
+                    <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary font-bold text-xs flex items-center justify-center flex-none">
+                      {(reply.sender?.username || "U").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="font-body-sm text-body-sm font-semibold text-on-surface">
+                          {reply.sender?.username || "User"}
+                        </span>
+                        <span className="font-label-sm text-label-sm text-outline">
+                          {formatTime(reply.createdAt)}
                         </span>
                       </div>
-                      <p className="text-sm text-zinc-600 leading-relaxed break-words whitespace-pre-wrap mt-0.5">
+                      <p className="font-body-sm text-body-sm text-on-surface">
                         {reply.content}
                       </p>
                     </div>
@@ -858,32 +896,29 @@ export default function WorkspaceChat() {
                 ))
               )}
             </div>
-          </div>
 
-          {/* Thread Reply Input Composer */}
-          <form onSubmit={handleSendThreadReply} className="px-4 pb-4 pt-3 border-t border-border bg-white shrink-0">
-            <div className="flex items-center gap-2">
-              <UserAvatar user={user} size="sm" />
-              <div className="flex-1 relative rounded-xl border border-border bg-zinc-50 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 focus-within:bg-white transition-all">
+            {/* Thread Reply Composer */}
+            <form onSubmit={handleSendThreadReply} className="p-space-sm border-t border-surface-container bg-surface-container-lowest">
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
                   placeholder="Reply in thread..."
                   value={threadInputValue}
                   onChange={(e) => setThreadInputValue(e.target.value)}
-                  className="flex-1 w-full h-9 bg-transparent pl-3 pr-14 text-sm text-zinc-900 outline-none border-none placeholder:text-zinc-400"
+                  className="flex-1 h-9 px-3 rounded-lg bg-surface-container-low border border-outline-variant/30 text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <button
                   type="submit"
                   disabled={!threadInputValue.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-primary hover:text-[#087F66] disabled:opacity-40 cursor-pointer px-1"
+                  className="px-3 h-9 bg-primary text-on-primary rounded-lg text-label-md font-label-md font-semibold hover:bg-primary-container disabled:opacity-40 transition-colors"
                 >
                   Send
                 </button>
               </div>
-            </div>
-          </form>
-        </aside>
-      )}
+            </form>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

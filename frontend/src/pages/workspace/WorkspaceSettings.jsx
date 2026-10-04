@@ -72,8 +72,8 @@ export default function WorkspaceSettings() {
 
   if (!workspace) {
     return (
-      <div className="p-6">
-        <div className="h-4 w-32 bg-zinc-900 rounded animate-pulse" />
+      <div className="p-space-lg max-w-4xl mx-auto w-full">
+        <div className="h-6 w-48 bg-surface-container-high rounded animate-pulse" />
       </div>
     );
   }
@@ -88,66 +88,74 @@ export default function WorkspaceSettings() {
   };
 
   return (
-    <div className="p-6 space-y-6 h-full flex flex-col selection:bg-primary/20 selection:text-white">
-      <div className="shrink-0">
-        <h2 className="text-lg font-bold tracking-tight text-white select-none">Workspace Settings</h2>
-        <p className="text-[11px] text-zinc-550 font-medium select-none">Configure general parameters and workspace information</p>
-      </div>
+    <div className="h-full overflow-y-auto bg-surface-ws select-none">
+      <div className="p-space-lg max-w-4xl mx-auto w-full space-y-space-lg pb-16">
+        
+        {/* Page Header */}
+        <div className="space-y-1">
+          <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">Workspace Settings</h1>
+          <p className="font-body-md text-body-md text-on-surface-variant">Configure general parameters and workspace members</p>
+        </div>
 
-      <div className="flex-1 overflow-y-auto space-y-5 max-w-lg min-h-0 pr-1 no-scrollbar">
-        {/* General Settings */}
+        {/* General Info */}
         <form onSubmit={handleSave} className="space-y-4">
-          <div className="rounded-xl border border-zinc-950 bg-[#050505] p-5 space-y-4">
-            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest select-none">General Info</h4>
+          <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-xs space-y-5">
+            <div className="flex items-center gap-2 pb-2 border-b border-surface-container">
+              <span className="material-symbols-outlined text-primary" style={{ fontSize: 20 }}>tune</span>
+              <h2 className="text-body-md font-semibold text-on-surface">General Information</h2>
+            </div>
             
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block select-none">Workspace Name</label>
+                <label className="text-label-sm font-medium text-on-surface-variant block">Workspace Name</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="h-8.5 w-full rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 text-xs text-foreground outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all"
+                  className="h-9 w-full rounded-lg border border-outline-variant/40 bg-white px-3 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block select-none">Workspace Description</label>
+                <label className="text-label-sm font-medium text-on-surface-variant block">Workspace Description</label>
                 <textarea
-                  placeholder="Workspace description..."
+                  placeholder="Describe the purpose of this workspace..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full min-h-[70px] rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 py-2 text-xs text-foreground outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all resize-none"
+                  className="w-full min-h-[80px] rounded-lg border border-outline-variant/40 bg-white px-3 py-2 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block select-none">Workspace Slug</label>
+                <label className="text-label-sm font-medium text-on-surface-variant block">Workspace Slug</label>
                 <input
                   type="text"
                   value={workspace.slug || ""}
                   disabled
-                  className="h-8.5 w-full rounded-lg border border-zinc-955 bg-zinc-955/20 px-3 text-xs text-zinc-600 font-mono select-none"
+                  className="h-9 w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 text-body-sm text-on-surface-variant font-mono select-none"
                 />
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={updateWorkspaceMutation.isPending}
-              className="h-8 px-4 rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer"
-            >
-              {updateWorkspaceMutation.isPending ? "Saving..." : "Save Changes"}
-            </button>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={updateWorkspaceMutation.isPending}
+                className="h-9 px-5 rounded-lg bg-primary text-on-primary hover:bg-primary-container text-body-sm font-medium disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {updateWorkspaceMutation.isPending ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
           </div>
         </form>
 
         {/* Members & Invites Section */}
-        <div className="rounded-xl border border-zinc-955 bg-[#050505] p-5 space-y-5">
-          <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest select-none">Members & Invitations</h4>
+        <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-xs space-y-6">
+          <div className="flex items-center gap-2 pb-2 border-b border-surface-container">
+            <span className="material-symbols-outlined text-primary" style={{ fontSize: 20 }}>group</span>
+            <h2 className="text-body-md font-semibold text-on-surface">Members & Invitations</h2>
+          </div>
           
           {/* Invite form */}
           <form
@@ -156,22 +164,22 @@ export default function WorkspaceSettings() {
               if (!inviteEmail.trim()) return;
               inviteMutation.mutate({ email: inviteEmail.trim(), role: inviteRole });
             }}
-            className="space-y-3 pb-4 border-b border-zinc-900"
+            className="space-y-3 pb-6 border-b border-surface-container"
           >
-            <p className="text-[10px] font-semibold text-zinc-550 uppercase tracking-wider select-none">Invite employee or team member</p>
+            <p className="text-body-sm font-medium text-on-surface">Invite new team member</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input
                 type="email"
                 required
-                placeholder="name@company.com"
+                placeholder="colleague@company.com"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                className="h-8.5 rounded-lg border border-zinc-900 bg-zinc-950/40 px-3 text-xs text-foreground outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-800 transition-all"
+                className="h-9 rounded-lg border border-outline-variant/40 bg-white px-3 text-body-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               />
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
-                className="h-8.5 rounded-lg border border-zinc-900 bg-zinc-950/40 px-2 text-xs text-zinc-350 outline-none focus:border-zinc-700 cursor-pointer"
+                className="h-9 rounded-lg border border-outline-variant/40 bg-white px-3 text-body-sm text-on-surface outline-none focus:border-primary cursor-pointer"
               >
                 <option value="MEMBER">Member (Standard role)</option>
                 <option value="ADMIN">Admin (Manage settings)</option>
@@ -180,15 +188,15 @@ export default function WorkspaceSettings() {
             <button
               type="submit"
               disabled={inviteMutation.isPending}
-              className="h-8 px-4 rounded-lg bg-white text-xs font-bold text-black hover:bg-zinc-200 disabled:opacity-50 transition-all cursor-pointer"
+              className="h-9 px-5 rounded-lg bg-surface-container-high text-on-surface hover:bg-surface-container-highest text-body-sm font-medium disabled:opacity-50 transition-colors cursor-pointer"
             >
               {inviteMutation.isPending ? "Generating..." : "Generate Invite Link"}
             </button>
 
             {/* Generated Link display */}
             {generatedLink && (
-              <div className="mt-3 bg-zinc-950 border border-zinc-900 rounded-lg p-2.5 space-y-2">
-                <div className="flex justify-between items-center text-[8px] font-bold text-zinc-500 select-none">
+              <div className="mt-3 bg-surface-container-low border border-outline-variant/30 rounded-xl p-3.5 space-y-2">
+                <div className="flex justify-between items-center text-label-sm font-semibold text-on-surface-variant">
                   <span>INVITATION LINK</span>
                   <button
                     type="button"
@@ -196,7 +204,7 @@ export default function WorkspaceSettings() {
                       navigator.clipboard.writeText(generatedLink);
                       alert("Invitation link copied to clipboard!");
                     }}
-                    className="text-white hover:underline cursor-pointer"
+                    className="text-primary hover:underline cursor-pointer font-medium"
                   >
                     Copy Link
                   </button>
@@ -205,35 +213,35 @@ export default function WorkspaceSettings() {
                   type="text"
                   readOnly
                   value={generatedLink}
-                  className="w-full bg-transparent border-none text-[10px] text-zinc-350 font-mono outline-none"
+                  className="w-full bg-white border border-outline-variant/30 rounded px-2.5 py-1 text-label-sm text-on-surface font-mono outline-none"
                 />
               </div>
             )}
           </form>
 
           {/* Members List */}
-          <div className="space-y-2.5">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest select-none">Active Members</p>
+          <div className="space-y-3">
+            <p className="text-body-sm font-medium text-on-surface">Active Members ({membersData.length})</p>
             <div className="space-y-2">
               {membersData.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-zinc-950 bg-zinc-950/20"
+                  className="flex items-center justify-between p-3.5 rounded-xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container transition-colors"
                 >
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <div className="h-6.5 w-6.5 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] font-bold text-zinc-300 flex items-center justify-center uppercase shrink-0">
-                      {m.user?.username?.substring(0, 2) || "AD"}
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="h-8 w-8 rounded-full bg-primary-container text-on-primary text-xs font-bold flex items-center justify-center uppercase shrink-0">
+                      {m.user?.firstName?.[0] || m.user?.username?.substring(0, 2) || "U"}
                     </div>
                     <div className="overflow-hidden">
-                      <p className="text-xs font-bold text-zinc-250 truncate">
-                        {m.user?.username || m.userId}
+                      <p className="text-body-sm font-medium text-on-surface truncate">
+                        {m.user?.firstName && m.user?.lastName ? `${m.user.firstName} ${m.user.lastName}` : m.user?.username || m.userId}
                       </p>
-                      <p className="text-[9px] text-zinc-650 truncate">{m.user?.email}</p>
+                      <p className="text-label-sm text-on-surface-variant truncate">{m.user?.email}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="text-[9px] font-mono bg-zinc-900 border border-zinc-850 px-1.5 py-0.5 rounded text-zinc-500 uppercase">
+                    <span className="text-label-sm font-mono bg-surface-container-high border border-outline-variant/30 px-2 py-0.5 rounded text-on-surface-variant uppercase font-medium">
                       {m.role}
                     </span>
                     {m.role !== "OWNER" && m.user?.id !== user?.id && (
@@ -245,7 +253,7 @@ export default function WorkspaceSettings() {
                           }
                         }}
                         disabled={removeMemberMutation.isPending}
-                        className="text-[9px] font-bold text-red-500 hover:text-red-400 cursor-pointer"
+                        className="text-label-sm font-medium text-destructive hover:underline cursor-pointer"
                       >
                         Remove
                       </button>
